@@ -1,0 +1,45 @@
+{
+  "policies": {
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DontCheckDefaultBrowser": true,
+    "NoDefaultBookmarks": true,
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "ExtensionSettings": {
+      "wappalyzer@crunchlabz.com": {
+        "installation_mode": "force_installed",
+        "install_url": "file:///opt/firefox-addons/wappalyzer@crunchlabz.com.xpi"
+      },
+      "foxyproxy@eric.h.jung": {
+        "installation_mode": "force_installed",
+        "install_url": "file:///opt/firefox-addons/foxyproxy@eric.h.jung.xpi"
+      }
+    },
+    "Bookmarks": [
+      {"Title":"RevShells (reverse shell generator)","URL":"https://www.revshells.com/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"GTFOBins","URL":"https://gtfobins.github.io/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"LOLBAS","URL":"https://lolbas-project.github.io/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"LOLDrivers","URL":"https://www.loldrivers.io/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"WADComs (Win/AD)","URL":"https://wadcoms.github.io/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"HackTricks","URL":"https://book.hacktricks.wiki/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"HackTricks Cloud","URL":"https://cloud.hacktricks.wiki/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"PayloadsAllTheThings","URL":"https://github.com/swisskyrepo/PayloadsAllTheThings","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"CyberChef","URL":"https://gchq.github.io/CyberChef/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"CrackStation","URL":"https://crackstation.net/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"hashes.com (identify/crack)","URL":"https://hashes.com/en/decrypt/hash","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"Exploit-DB","URL":"https://www.exploit-db.com/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"Sploitus","URL":"https://sploitus.com/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"NVD CVE Search","URL":"https://nvd.nist.gov/vuln/search","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"crt.sh (cert transparency)","URL":"https://crt.sh/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"DNSDumpster","URL":"https://dnsdumpster.com/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"Shodan","URL":"https://www.shodan.io/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"PortSwigger Web Academy","URL":"https://portswigger.net/web-security","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"MITRE ATT&CK","URL":"https://attack.mitre.org/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"OCD AD/Pentest Mindmaps","URL":"https://orange-cyberdefense.github.io/ocd-mindmaps/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"explainshell","URL":"https://explainshell.com/","Placement":"toolbar","Folder":"Pentest"},
+      {"Title":"regex101","URL":"https://regex101.com/","Placement":"toolbar","Folder":"Pentest"}
+    ]
+  }
+}

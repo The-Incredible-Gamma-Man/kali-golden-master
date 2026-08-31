@@ -1,0 +1,11 @@
+# secrets / keys — NEVER commit
+build_key
+build_key.pub
+*.pem
+id_*
+# image blobs & transient build junk
+*.qcow2
+*.7z
+dl.log
+dl.status
+vm_ip

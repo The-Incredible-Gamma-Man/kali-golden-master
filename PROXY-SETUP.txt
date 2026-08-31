@@ -1,0 +1,6 @@
+FoxyProxy is pre-installed. Add the two proxies (Options > Proxies > Add):
+  1) Burp       Type: HTTP    IP: 127.0.0.1  Port: 8080
+  2) SOCKS5     Type: SOCKS5  IP: 127.0.0.1  Port: 1080   (tick "Send DNS through SOCKS5")
+Toggle from the FoxyProxy toolbar icon. Or import foxyproxy-import.json (Options > Import/Export).
+Burp HTTPS interception: start Burp, browse http://burp, download & import the CA cert
+  (Firefox > Settings > Privacy & Security > Certificates > Import; trust for websites).

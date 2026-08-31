@@ -1,0 +1,8 @@
+{
+  "mode": "disabled",
+  "proxyDNS": true,
+  "data": [
+    {"active": true, "title": "Burp", "type": "http", "hostname": "127.0.0.1", "port": "8080", "username": "", "password": "", "cc": "", "city": "", "color": "#e67e22", "pac": "", "include": [], "exclude": []},
+    {"active": true, "title": "SOCKS5 1080", "type": "socks5", "hostname": "127.0.0.1", "port": "1080", "username": "", "password": "", "cc": "", "city": "", "color": "#3498db", "proxyDNS": true, "pac": "", "include": [], "exclude": []}
+  ]
+}
