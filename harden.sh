@@ -9,6 +9,10 @@ set -uo pipefail
 export DEBIAN_FRONTEND=noninteractive
 GW="${GATEWAY_DNS:-192.168.122.1}"
 
+# Optional: a new 'kali' password supplied on stdin (first line) by the build wrapper.
+# If none is given (interactive tty or empty), the default is kept.
+NEWPW=""; if [ ! -t 0 ]; then IFS= read -r NEWPW || true; fi
+
 echo "[*] UFW: default deny in / allow out / SSH / drop inbound ping"
 apt-get install -y -q ufw </dev/null >/dev/null 2>&1 || true
 ufw --force reset >/dev/null 2>&1 || true
@@ -38,12 +42,17 @@ printf 'PasswordAuthentication no\nPermitRootLogin no\nKbdInteractiveAuthenticat
 echo "[*] lock the root account"
 passwd -l root >/dev/null 2>&1 || true
 
+if [ -n "$NEWPW" ]; then
+  echo "kali:$NEWPW" | chpasswd && echo "[*] 'kali' password set"
+else
+  echo "[*] 'kali' password left at default - set it after boot with: passwd"
+fi
+
 echo "[*] remove the build-time passwordless sudo (default behaviour restored)"
 rm -f /etc/sudoers.d/99-build
 
 cat <<'EOF'
 [+] Hardening applied: UFW up, root locked, key-only SSH, gateway-only DNS, mDNS/LLMNR/BT off.
-    SSH is key-only, so remote access does NOT depend on a password. The 'kali' user keeps its
-    default password for local console/sudo - change it after first boot:  passwd
+    SSH is key-only, so remote access does NOT depend on a password (it is only for console/sudo).
     DNS / SSH / service settings take full effect on the next boot (i.e. on every clone).
 EOF

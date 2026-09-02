@@ -60,9 +60,17 @@ echo "[5/5] provisioning the toolset (this is the long part)"
 ssh "${SSHOPTS[@]}" "kali@$IP" 'echo kali | sudo -S bash -c "echo \"kali ALL=(ALL) NOPASSWD:ALL\" >/etc/sudoers.d/99-build; chmod 440 /etc/sudoers.d/99-build"' || true
 scp "${SSHOPTS[@]}" "$HERE/provision-golden.sh" "$HERE/clean-master.sh" "$HERE/harden.sh" "kali@$IP:/tmp/"
 ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/provision-golden.sh'
+# choose a password for the 'kali' user (SSH is key-only, so this is for console/sudo)
+KALI_PW=""
+while :; do
+  read -rs -p "Set a password for the 'kali' user (blank = keep default 'kali'): " KALI_PW; echo
+  [ -z "$KALI_PW" ] && { echo "  (keeping default)"; break; }
+  read -rs -p "Confirm: " _pw2; echo
+  [ "$KALI_PW" = "$_pw2" ] && break || echo "  didn't match, try again"
+done
 echo "[*] sealing + hardening (this removes the build-time passwordless sudo)"
 ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/clean-master.sh'
-ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/harden.sh'
+printf '%s\n' "$KALI_PW" | ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/harden.sh'
 ssh "${SSHOPTS[@]}" "kali@$IP" 'rm -f /tmp/clean-master.sh /tmp/harden.sh' 2>/dev/null || true
 
 cat <<EOF

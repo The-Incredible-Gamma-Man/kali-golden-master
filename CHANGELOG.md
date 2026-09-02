@@ -11,6 +11,9 @@ during testing" at a glance.
   default-deny-in with no ping, gateway-only DNS, mDNS/LLMNR/Bluetooth/CUPS off) and removes the
   build-time passwordless sudo. Now wired into **both** `bootstrap.sh` and the Packer build, so a
   fresh build produces a hardened master automatically — no manual steps.
+- **Password prompt on build** — `bootstrap.sh` and `packer/build.sh` prompt for a `kali` password
+  (fed to `harden.sh` on stdin / via `PKR_VAR_kali_password`); leaving it blank keeps the default.
+  SSH stays key-only regardless, so this only governs console/sudo access.
 
 ### Fixed
 - **`goldenctl new --vpn` / `--resources`** race: the injection ran before the clone's first-boot

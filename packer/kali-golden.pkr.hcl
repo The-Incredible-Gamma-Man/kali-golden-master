@@ -31,6 +31,13 @@ variable "cpus" {
   default = "8"
 }
 
+variable "kali_password" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "New password for the 'kali' user; empty keeps the default. Set via PKR_VAR_kali_password."
+}
+
 source "qemu" "kali-golden" {
   iso_url              = var.base_image
   iso_checksum         = "none"
@@ -80,6 +87,6 @@ build {
   }
 
   provisioner "shell" {
-    inline = ["sudo bash /tmp/harden.sh"]
+    inline = ["printf '%s\\n' '${var.kali_password}' | sudo bash /tmp/harden.sh"]
   }
 }

@@ -38,6 +38,16 @@ virt-customize -a "$HERE/base/prepared.qcow2" \
   --ssh-inject "kali:file:${GOLDEN_KEY}.pub" \
   --run-command 'mkdir -p /home/kali/.ssh && chown -R kali:kali /home/kali/.ssh && chmod 700 /home/kali/.ssh'
 
+# choose a password for the 'kali' user (SSH is key-only; this is for console/sudo)
+KALI_PW=""
+while :; do
+  read -rs -p "Set a password for the 'kali' user (blank = keep default 'kali'): " KALI_PW; echo
+  [ -z "$KALI_PW" ] && { echo "  (keeping default)"; break; }
+  read -rs -p "Confirm: " _pw2; echo
+  [ "$KALI_PW" = "$_pw2" ] && break || echo "  didn't match, try again"
+done
+export PKR_VAR_kali_password="$KALI_PW"
+
 echo "[3/3] packer build (installs the toolset, then seals the image)"
 cd "$HERE"
 packer init .
