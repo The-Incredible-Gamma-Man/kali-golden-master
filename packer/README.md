@@ -1,40 +1,33 @@
-# Packer build (experimental)
+# Packer build (declarative / IaC path)
 
-A declarative alternative to `bootstrap.sh` — the direction of travel toward full
-infrastructure-as-code. **This is a scaffold, not a turnkey build yet: validate it on your host
-before relying on it.** The tested, supported path today is `../bootstrap.sh`.
-
-## Why it's marked experimental
-
-The pinned Kali QEMU base image ships with the `kali/kali` user but **SSH is not enabled on first
-boot**, and Packer needs SSH to run provisioners. `bootstrap.sh` solves this by `virt-customize`-ing
-the image (enabling SSH + injecting the key) *before* defining the VM. A pure-Packer flow needs one
-of:
-
-- a **pre-step** that runs `virt-customize -a <base>.qcow2 --run-command 'systemctl enable ssh'
-  --ssh-inject kali:file:../build_key.pub` before `packer build`, or
-- a **cloud-init** seed ISO attached at boot to enable SSH and authorize the key, or
-- a `boot_command` that logs in on the console and enables `ssh`.
-
-Until one of those is wired in, `packer build` will time out waiting for SSH.
-
-## Usage (once SSH bootstrap is in place)
+A declarative, one-command way to build the golden master — an alternative to `../bootstrap.sh`
+aimed at reproducible/CI builds. The result is a portable, sealed `kali-golden.qcow2`.
 
 ```bash
-# generate the build key if you don't have one
-ssh-keygen -t ed25519 -N '' -f ../build_key -C golden-build
-
-packer init .
-packer build \
-  -var "base_sha256=$(awk '{print $1}' ../sha.txt)" \
-  -var "ssh_pubkey=../build_key.pub" \
-  kali-golden.pkr.hcl
+./packer/build.sh
 ```
 
-Output lands in `output-kali-golden/kali-golden.qcow2`, ready to move into your libvirt pool and
-clone with `goldenctl`.
+That's it. The script:
 
-## Contributions welcome
+1. Downloads and checksum-verifies the pinned Kali base image (from `../sha.txt`).
+2. Prepares an SSH-enabled copy with `virt-customize` (the Kali base doesn't enable SSH on first
+   boot, and Packer needs SSH to run its provisioners).
+3. Runs `packer build`, which installs the toolset (`provision-golden.sh`) and seals the image
+   (`clean-master.sh`).
 
-Wiring in the cloud-init (or virt-customize pre-step) to make this a one-shot `packer build` is the
-top open item on the roadmap — PRs appreciated.
+Output lands in `packer/output-kali-golden/kali-golden.qcow2`, ready to drop into your libvirt pool
+and clone with `goldenctl new <id>`.
+
+## Requirements
+
+`packer`, `libguestfs-tools` (for `virt-customize`), `qemu-img`, `curl`, `p7zip-full` (`7z`), and KVM
+access (membership in the `kvm`/`libvirt` group, or run with `sudo`).
+
+## Notes
+
+- The `.pkr.hcl` uses the standard qemu `disk_image` pattern; `build.sh` supplies the prepared base
+  and the SSH key as variables, so no secrets live in the HCL.
+- This path is validated for HCL correctness; give it a dry run on your host before relying on it in
+  CI, since Packer/qemu behaviour varies a little by version and host.
+- Prefer `../bootstrap.sh` if you just want the master built directly into libvirt without producing
+  a separate image artifact.

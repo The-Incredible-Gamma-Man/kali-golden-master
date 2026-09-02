@@ -86,12 +86,12 @@ On an encrypted host, deletion leaves nothing recoverable at rest.
 | `update-golden.sh` | interactive full refresh + changelog rewrite |
 | `policies.json` | Firefox enterprise policy (extensions + bookmarks) |
 | `pentest-cheatsheet.html` | offline reference bundled into the image |
-| `packer/` | experimental declarative build (IaC) — see its README |
+| `packer/` | one-command declarative build (IaC) — `./packer/build.sh` |
 | `RUNBOOK.md` / `CHANGELOG.md` | operations guide + version history |
 
 ## Roadmap
 
-- Declarative build via **Packer/Ansible** (scaffolded in `packer/`) for full IaC reproducibility.
+- One-command **Packer** build ships in `packer/`; an **Ansible/Nix** path is the next IaC step.
 - **Airgapped master**: bundled apt/PyPI/git mirrors so even the *build* runs offline.
 - Slim **image profiles** (light / AD / web) alongside the full master.
 - Optional **USB passthrough** and **X11** recipes for wireless and GUI-heavy work.

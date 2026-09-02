@@ -13,7 +13,8 @@ during testing" at a glance.
 - **VPN injection** — `goldenctl new <id> --vpn client.ovpn` drops a VPN config into the clone.
 - **`my-resources`** — `goldenctl new <id> --resources DIR` injects your personal tooling into
   `~/my-resources` on the clone (Exegol-style), keeping the master generic.
-- **`packer/`** — experimental declarative (Packer) build path toward full IaC.
+- **`packer/`** — one-command declarative (Packer) build path (`./packer/build.sh`) that prepares an
+  SSH-enabled base and builds a portable, sealed image artifact.
 - **`CONTRIBUTING.md`**; README repositioned around the OPSEC-hardened / airgap-ready / VM-isolated
   differentiator.
 
