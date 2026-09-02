@@ -2,10 +2,26 @@
 build_key
 build_key.pub
 *.pem
+*.key
 id_*
+
+# VPN / client configs — NEVER commit
+*.ovpn
+*.crt
+*.ovpn.txt
+
 # image blobs & transient build junk
 *.qcow2
 *.7z
 dl.log
 dl.status
 vm_ip
+
+# personal my-resources content (keep the folder + its README only)
+my-resources/*
+!my-resources/README.md
+
+# packer build artifacts
+packer/output-*/
+packer/*.qcow2
+packer/packer_cache/

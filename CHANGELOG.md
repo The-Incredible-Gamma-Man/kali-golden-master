@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Version tags follow the
 `kali-baseline-vMAJOR.MINOR-YYYY-MM` scheme so a tag answers "what tools were present
 during testing" at a glance.
 
+## [v1.1-2026-09] — CLI, VPN/my-resources, IaC scaffold
+
+### Added
+- **`goldenctl`** — one unified CLI for the whole lifecycle: `build`, `new`, `ssh`, `list`,
+  `status`, `update`, `close`.
+- **`bootstrap.sh`** — one-command online build of the master from the pinned Kali base image.
+- **VPN injection** — `goldenctl new <id> --vpn client.ovpn` drops a VPN config into the clone.
+- **`my-resources`** — `goldenctl new <id> --resources DIR` injects your personal tooling into
+  `~/my-resources` on the clone (Exegol-style), keeping the master generic.
+- **`packer/`** — experimental declarative (Packer) build path toward full IaC.
+- **`CONTRIBUTING.md`**; README repositioned around the OPSEC-hardened / airgap-ready / VM-isolated
+  differentiator.
+
+### Notes
+- Building the master needs connectivity; once built, launching engagements is **fully offline**.
+
 ## [v1.0-2026-08] — Kali 2026.2 base
 
 Initial golden-master recipe. Built as a libvirt/KVM VM on a full-disk-encrypted host.

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# goldenctl - one command to manage the Kali golden master and per-engagement clones.
+#
+# Config via env (sane defaults shown):
+#   GOLDEN_MASTER   golden master domain name              (kali-golden)
+#   GOLDEN_KEY      SSH key the host uses to reach guests   (~/.ssh/kali-golden_build_key)
+#   GOLDEN_DIR      directory holding the helper scripts     (this script's dir)
+#
+# Usage:
+#   goldenctl build                         build the master from scratch (online, once)
+#   goldenctl list                          list master + engagement clones
+#   goldenctl status                        show state + IPs
+#   goldenctl new <id> [--vpn f.ovpn] [--resources DIR]
+#                                           clone a fresh, isolated engagement VM
+#   goldenctl ssh <id>                      shell into an engagement clone
+#   goldenctl update                        refresh the master's toolset (update-golden)
+#   goldenctl close <id>                    destroy an engagement (VM + storage)
+set -euo pipefail
+
+: "${GOLDEN_MASTER:=kali-golden}"
+: "${GOLDEN_KEY:=$HOME/.ssh/kali-golden_build_key}"
+GOLDEN_DIR="${GOLDEN_DIR:-$(cd "$(dirname "$0")" && pwd)}"
+VIRSH="virsh -c qemu:///system"
+SSHOPTS=(-i "$GOLDEN_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
+
+die(){ echo "goldenctl: $*" >&2; exit 1; }
+have(){ command -v "$1" >/dev/null 2>&1; }
+clone_ip(){ $VIRSH -q domifaddr "$1" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1; }
+wait_ip(){ local n="$1" ip=""; for _ in $(seq 1 30); do ip=$(clone_ip "$n"); [ -n "$ip" ] && { echo "$ip"; return; }; sleep 4; done; }
+
+usage(){ sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
+
+cmd_build(){ exec bash "$GOLDEN_DIR/bootstrap.sh" "$@"; }
+
+cmd_list(){ $VIRSH list --all | awk 'NR<=2 || /kali-golden|eng-/'; }
+
+cmd_status(){
+  printf '%-22s %-10s %s\n' DOMAIN STATE ADDRESS
+  $VIRSH list --all --name | grep -E "^${GOLDEN_MASTER}$|^eng-" | while read -r d; do
+    [ -z "$d" ] && continue
+    printf '%-22s %-10s %s\n' "$d" "$($VIRSH domstate "$d" 2>/dev/null)" "$(clone_ip "$d")"
+  done
+}
+
+cmd_new(){
+  local id="${1:-}"; shift || true
+  [ -n "$id" ] || die "usage: goldenctl new <id> [--vpn f.ovpn] [--resources DIR]"
+  local vpn="" res=""
+  while [ $# -gt 0 ]; do case "$1" in
+    --vpn) vpn="${2:?}"; shift 2;;
+    --resources) res="${2:?}"; shift 2;;
+    *) die "unknown option: $1";;
+  esac; done
+  [ -n "$vpn" ] && [ ! -f "$vpn" ] && die "vpn file not found: $vpn"
+  [ -n "$res" ] && [ ! -d "$res" ] && die "resources dir not found: $res"
+
+  bash "$GOLDEN_DIR/new-engagement.sh" "$id"
+  local ip; ip=$(wait_ip "eng-$id")
+  [ -z "$ip" ] && { echo "clone up but no address yet; inject VPN/resources manually later."; return; }
+
+  if [ -n "$vpn" ]; then
+    scp "${SSHOPTS[@]}" "$vpn" "kali@$ip:engagements/$id/$(basename "$vpn")"
+    echo "[+] VPN copied to ~/engagements/$id/$(basename "$vpn")  (start: sudo openvpn --config that file)"
+  fi
+  if [ -n "$res" ]; then
+    ssh "${SSHOPTS[@]}" "kali@$ip" 'mkdir -p ~/my-resources'
+    scp -r "${SSHOPTS[@]}" "$res/." "kali@$ip:my-resources/"
+    echo "[+] resources injected to ~/my-resources"
+  fi
+}
+
+cmd_ssh(){ local id="${1:?usage: goldenctl ssh <id>}"; local ip; ip=$(clone_ip "eng-$id"); [ -n "$ip" ] || die "eng-$id has no address (running?)"; exec ssh "${SSHOPTS[@]}" "kali@$ip"; }
+
+cmd_close(){ local id="${1:?usage: goldenctl close <id>}"; exec bash "$GOLDEN_DIR/close-engagement.sh" "$id"; }
+
+cmd_update(){
+  local ip; ip=$(clone_ip "$GOLDEN_MASTER")
+  [ -n "$ip" ] || die "master not running; start it first: virsh -c qemu:///system start $GOLDEN_MASTER"
+  exec ssh -t "${SSHOPTS[@]}" "kali@$ip" 'update-golden'
+}
+
+have virsh || die "libvirt (virsh) not found - run on the hypervisor host"
+sub="${1:-help}"; shift || true
+case "$sub" in
+  build) cmd_build "$@";;
+  list)  cmd_list "$@";;
+  status) cmd_status "$@";;
+  new)   cmd_new "$@";;
+  ssh)   cmd_ssh "$@";;
+  update) cmd_update "$@";;
+  close) cmd_close "$@";;
+  help|-h|--help) usage;;
+  *) die "unknown command: $sub (try: goldenctl help)";;
+esac

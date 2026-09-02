@@ -4,24 +4,47 @@
 ![Platform](https://img.shields.io/badge/platform-Kali%20Linux-557C94?logo=kalilinux&logoColor=white)
 ![Shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnubash&logoColor=white)
 ![Hypervisor](https://img.shields.io/badge/hypervisor-libvirt%2FKVM-CC0000?logo=redhat&logoColor=white)
-![Made with Bash](https://img.shields.io/badge/made%20with-bash-1f425f.svg)
+![OPSEC](https://img.shields.io/badge/OPSEC-hardened-blue.svg)
+![Airgap](https://img.shields.io/badge/airgap-ready-informational.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-A reproducible, versioned **Kali Linux golden image** for authorized penetration testing —
-built as a libvirt/KVM virtual machine and designed to be *cloned per engagement and
-destroyed at close*, so nothing ever bleeds between clients.
+An **OPSEC-hardened, airgap-ready Kali Linux golden image** for authorized penetration testing —
+built as a full **libvirt/KVM virtual machine**, cloned per engagement and destroyed at close, so
+nothing ever bleeds between clients and your box never beacons on a target's LAN.
 
-The image itself is a build artifact. The source of truth is this repository: a set of
-scripts and config that rebuild an identical master from the upstream Kali base image plus
-the pinned checksum in [`sha.txt`](sha.txt). Ship the recipe, not a 40 GB blob.
+Container-based toolkits (Exegol, and friends) already do fast, disposable environments well. This
+project deliberately takes the **VM road** and leans into the parts those tools leave on the table:
 
-## Why
+- **Kernel-level isolation** — a real VM boundary per engagement, not a shared kernel.
+- **OPSEC hardening as a first-class feature** — mDNS/LLMNR/Bluetooth off, gateway-only DNS,
+  default-deny inbound with no ping, key-only SSH, root locked. A clone stays quiet on a client LAN.
+- **Airgap-ready** — an offline cheatsheet, wordlists, exploit DB and a grab-and-go payload kit are
+  baked in; once the master is built, engagements run with **no connectivity at all**.
+- **Reproducible-as-code** — the image is a build artifact; this repo is the source of truth, so a
+  tagged version answers "what tools were present during testing" from a commit.
 
-Standing up a fresh, consistent toolbox for every engagement is tedious and error-prone,
-and re-using one VM across clients is a cross-contamination finding waiting to happen. This
-repo makes the baseline **reproducible** (rebuild from code), **auditable** (tagged versions
-answer "what tools were present during testing"), and **disposable** (each engagement gets a
-throwaway clone with a fresh identity).
+## Quick start
+
+```bash
+# one-time, online: build the master from the pinned Kali base image
+./bootstrap.sh
+
+# per engagement (fully offline from here on):
+./goldenctl new acme-corp --vpn client.ovpn --resources ./my-resources
+./goldenctl ssh acme-corp          # work happens only inside the clone
+./goldenctl close acme-corp        # destroy VM + storage at close
+```
+
+`goldenctl` is the single entry point:
+
+| Command | Does |
+|---|---|
+| `goldenctl build` | build the master from scratch (online, once) |
+| `goldenctl new <id> [--vpn f.ovpn] [--resources DIR]` | clone a fresh, isolated engagement VM (optionally inject a VPN config and your personal tooling) |
+| `goldenctl ssh <id>` | shell into an engagement clone |
+| `goldenctl list` / `status` | show the master + clones and their addresses |
+| `goldenctl update` | refresh the master's toolset (`update-golden`) |
+| `goldenctl close <id>` | destroy an engagement (VM + storage) |
 
 ## What's inside
 
@@ -34,50 +57,49 @@ throwaway clone with a fresh identity).
 - **Post-ex / pivot:** chisel, ligolo-ng, sshuttle, proxychains, linpeas/winpeas/pspy.
 - **Wordlists & exploits:** SecLists, rockyou, searchsploit/Exploit-DB, PayloadsAllTheThings.
 - **Workflow:** AutoRecon, a hardened Firefox profile (Wappalyzer + FoxyProxy, curated bookmarks),
-  CherryTree, Flameshot, and an offline HTML cheatsheet bundled into the image.
+  CherryTree, Flameshot, OpenVPN, and a self-contained offline HTML cheatsheet.
 
 Full inventory in [`CHANGELOG.md`](CHANGELOG.md).
 
-## Quick start
+## `my-resources` — your kit, in every clone
 
-Prerequisites: a Linux host with libvirt/KVM and `libguestfs-tools`.
+Drop personal scripts, wordlists, aliases or configs into a folder and pass it to
+`goldenctl new … --resources DIR`; it lands in `~/my-resources` inside the clone. See
+[`my-resources/README.md`](my-resources/README.md). (Inspired by Exegol's my-resources — the one
+idea from that world too good not to borrow.)
 
-```bash
-# 1. Fetch the pinned Kali base QEMU image (see sha.txt), import as a VM.
-# 2. Provision the toolset inside it:
-sudo bash provision-golden.sh
-# 3. Snapshot/seal the master. Then, per engagement:
-./new-engagement.sh acme-corp     # clone → fresh identity → boot
-#    ...work happens only in the clone...
-./close-engagement.sh acme-corp   # destroy VM + storage at close
-```
+## Cross-contamination model
 
-See [`RUNBOOK.md`](RUNBOOK.md) for the full lifecycle and hardening notes.
+The master is a **sealed template**, never a workspace — no client IPs, creds, names or history.
+`goldenctl new` clones it and generalizes the copy (fresh machine-id, SSH host keys, Metasploit DB,
+wiped BloodHound graph, empty workspace). `goldenctl close` destroys the VM, disk and snapshots.
+On an encrypted host, deletion leaves nothing recoverable at rest.
 
 ## Repository layout
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `provision-golden.sh` | Installs the whole toolset into a fresh Kali base VM |
-| `new-engagement.sh` / `close-engagement.sh` | Clone-per-engagement lifecycle |
-| `update-golden.sh` | Interactive full refresh (apt/pipx/templates/binaries) + changelog |
-| `clean-master.sh` | Strips build breadcrumbs before sealing |
-| `opt-tools.sh` | Fetches standalone binaries into `/opt` |
+| `goldenctl` | unified CLI for the whole lifecycle |
+| `bootstrap.sh` | one-command online build of the master |
+| `provision-golden.sh` | installs the toolset into a fresh Kali base VM |
+| `new-engagement.sh` / `close-engagement.sh` | low-level clone/destroy primitives |
+| `update-golden.sh` | interactive full refresh + changelog rewrite |
 | `policies.json` | Firefox enterprise policy (extensions + bookmarks) |
-| `pentest-cheatsheet.html` | Self-contained offline reference bundled into the image |
-| `RUNBOOK.md` / `CHANGELOG.md` | Operations guide + version history |
+| `pentest-cheatsheet.html` | offline reference bundled into the image |
+| `packer/` | experimental declarative build (IaC) — see its README |
+| `RUNBOOK.md` / `CHANGELOG.md` | operations guide + version history |
 
-## Hardening highlights
+## Roadmap
 
-Root locked, key-only SSH, UFW default-deny-inbound (no ping), gateway-only DNS, and mDNS/LLMNR/
-Bluetooth disabled so a clone never beacons on a client LAN. Each clone is generalized on first
-boot (fresh machine-id, SSH host keys, Metasploit DB, empty workspace).
+- Declarative build via **Packer/Ansible** (scaffolded in `packer/`) for full IaC reproducibility.
+- **Airgapped master**: bundled apt/PyPI/git mirrors so even the *build* runs offline.
+- Slim **image profiles** (light / AD / web) alongside the full master.
+- Optional **USB passthrough** and **X11** recipes for wireless and GUI-heavy work.
 
 ## Contributing
 
-Issues and PRs welcome — new tools, additional NSE scripts, cheatsheet entries, or hardening
-improvements. Keep the master lean: engagement-specific or heavyweight tooling belongs on a clone,
-not the baseline.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Keep the master lean — engagement-specific or heavyweight
+tooling belongs on a clone, not the baseline.
 
 ## License
 
