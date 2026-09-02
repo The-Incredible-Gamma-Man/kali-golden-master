@@ -59,14 +59,22 @@ cmd_new(){
   local ip; ip=$(wait_ip "eng-$id")
   [ -z "$ip" ] && { echo "clone up but no address yet; inject VPN/resources manually later."; return; }
 
+  # wait for SSH to actually accept - first boot may still be generalizing the clone,
+  # so the workspace dir won't exist yet. This is what caused early --vpn copies to fail.
+  local ready=""
+  for _ in $(seq 1 30); do ssh "${SSHOPTS[@]}" -o ConnectTimeout=5 "kali@$ip" true 2>/dev/null && { ready=1; break; }; sleep 3; done
+  [ -z "$ready" ] && { echo "clone up at $ip but SSH not ready; inject VPN/resources manually later."; return; }
+
   if [ -n "$vpn" ]; then
-    scp "${SSHOPTS[@]}" "$vpn" "kali@$ip:engagements/$id/$(basename "$vpn")"
-    echo "[+] VPN copied to ~/engagements/$id/$(basename "$vpn")  (start: sudo openvpn --config that file)"
+    ssh "${SSHOPTS[@]}" "kali@$ip" "mkdir -p engagements/$id"
+    if scp "${SSHOPTS[@]}" "$vpn" "kali@$ip:engagements/$id/$(basename "$vpn")"; then
+      echo "[+] VPN copied to ~/engagements/$id/$(basename "$vpn")"
+      echo "    start it inside the clone:  sudo openvpn --config ~/engagements/$id/$(basename "$vpn")"
+    else echo "[!] VPN copy failed"; fi
   fi
   if [ -n "$res" ]; then
-    ssh "${SSHOPTS[@]}" "kali@$ip" 'mkdir -p ~/my-resources'
-    scp -r "${SSHOPTS[@]}" "$res/." "kali@$ip:my-resources/"
-    echo "[+] resources injected to ~/my-resources"
+    ssh "${SSHOPTS[@]}" "kali@$ip" 'mkdir -p my-resources'
+    scp -r "${SSHOPTS[@]}" "$res/." "kali@$ip:my-resources/" && echo "[+] resources injected to ~/my-resources" || echo "[!] resources copy failed"
   fi
 }
 

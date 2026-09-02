@@ -87,6 +87,7 @@ CherryTree notes off the clone into a timestamped, SHA-256-hashed archive for ev
 | `goldenctl` | unified CLI for the whole lifecycle |
 | `bootstrap.sh` | one-command online build of the master |
 | `provision-golden.sh` | installs the toolset into a fresh Kali base VM |
+| `harden.sh` | applies the OPSEC/security baseline (root lock, UFW, key-only SSH, DNS, LLMNR-off) |
 | `new-engagement.sh` / `close-engagement.sh` | low-level clone/destroy primitives |
 | `update-golden.sh` | interactive full refresh + changelog rewrite |
 | `policies.json` | Firefox enterprise policy (extensions + bookmarks) |

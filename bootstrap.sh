@@ -58,14 +58,18 @@ for _ in $(seq 1 15); do ssh "${SSHOPTS[@]}" -o ConnectTimeout=5 "kali@$IP" true
 echo "[5/5] provisioning the toolset (this is the long part)"
 # passwordless sudo for the build window (default kali password), then provision
 ssh "${SSHOPTS[@]}" "kali@$IP" 'echo kali | sudo -S bash -c "echo \"kali ALL=(ALL) NOPASSWD:ALL\" >/etc/sudoers.d/99-build; chmod 440 /etc/sudoers.d/99-build"' || true
-scp "${SSHOPTS[@]}" "$HERE/provision-golden.sh" "kali@$IP:/tmp/provision-golden.sh"
+scp "${SSHOPTS[@]}" "$HERE/provision-golden.sh" "$HERE/clean-master.sh" "$HERE/harden.sh" "kali@$IP:/tmp/"
 ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/provision-golden.sh'
+echo "[*] sealing + hardening (this removes the build-time passwordless sudo)"
+ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/clean-master.sh'
+ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/harden.sh'
+ssh "${SSHOPTS[@]}" "kali@$IP" 'rm -f /tmp/clean-master.sh /tmp/harden.sh' 2>/dev/null || true
 
 cat <<EOF
 
-Master '$GOLDEN_MASTER' provisioned (address: $IP).
-Next:
-  - copy policies.json + firefox add-ons + /opt assets as needed (see RUNBOOK.md)
-  - seal it:   sudo bash clean-master.sh   (run inside the VM), then
-  - harden + remove the build sudoers, tag the image, and clone with:  goldenctl new <id>
+Master '$GOLDEN_MASTER' built, sealed, and HARDENED (address: $IP).
+  root locked | key-only SSH | UFW up (no ping) | gateway-only DNS | mDNS/LLMNR/BT off | passwordless sudo removed.
+  The 'kali' user keeps its default password for console/sudo - ssh in and run 'passwd' to change it.
+Next: copy policies.json + firefox add-ons if wanted (RUNBOOK.md), shut it down, tag it,
+      then start engagements with:  goldenctl new <id>
 EOF

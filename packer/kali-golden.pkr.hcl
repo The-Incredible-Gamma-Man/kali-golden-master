@@ -72,4 +72,14 @@ build {
   provisioner "shell" {
     inline = ["sudo bash /tmp/clean-master.sh"]
   }
+
+  # Harden LAST — this removes the build-time passwordless sudo.
+  provisioner "file" {
+    source      = "../harden.sh"
+    destination = "/tmp/harden.sh"
+  }
+
+  provisioner "shell" {
+    inline = ["sudo bash /tmp/harden.sh"]
+  }
 }

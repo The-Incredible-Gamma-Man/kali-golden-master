@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Version tags follow the
 `kali-baseline-vMAJOR.MINOR-YYYY-MM` scheme so a tag answers "what tools were present
 during testing" at a glance.
 
+## [v1.3-2026-09] — hardening baked into the build + fixes
+
+### Added
+- **`harden.sh`** — applies the full OPSEC/security baseline (root locked, key-only SSH, UFW
+  default-deny-in with no ping, gateway-only DNS, mDNS/LLMNR/Bluetooth/CUPS off) and removes the
+  build-time passwordless sudo. Now wired into **both** `bootstrap.sh` and the Packer build, so a
+  fresh build produces a hardened master automatically — no manual steps.
+
+### Fixed
+- **`goldenctl new --vpn` / `--resources`** race: the injection ran before the clone's first-boot
+  finished creating the workspace, so the copy could fail with "No such file or directory". It now
+  waits for SSH and creates the target directory first.
+
 ## [v1.2-2026-09] — evidence retention
 
 ### Added
