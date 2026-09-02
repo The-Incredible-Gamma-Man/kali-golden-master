@@ -20,7 +20,7 @@ set -euo pipefail
 
 : "${GOLDEN_MASTER:=kali-golden}"
 : "${GOLDEN_KEY:=$HOME/.ssh/kali-golden_build_key}"
-GOLDEN_DIR="${GOLDEN_DIR:-$(cd "$(dirname "$0")" && pwd)}"
+GOLDEN_DIR="${GOLDEN_DIR:-$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)}"
 VIRSH="virsh -c qemu:///system"
 SSHOPTS=(-i "$GOLDEN_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
 
