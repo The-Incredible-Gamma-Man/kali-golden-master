@@ -107,3 +107,7 @@ MIT — see [`LICENSE`](LICENSE).
 
 > For authorized security testing only. You are responsible for having permission to test any
 > system you point these tools at.
+
+## AI Declaration
+This tool was made entirely with Claude Opus 4.8 under strict guidance and instruction. Every tool and feature of the product is deliberate, based on modern offensive cyber methodologies and personal preferences.
+Each line of code in the startup and teardown scripts have been manually reviewed.
