@@ -42,12 +42,14 @@ Connect to the clone with the build key over the host's NAT network. Work only i
 ## Close an engagement
 
 ```bash
-# export the report first, then:
-./close-engagement.sh acme-corp     # destroys VM + disk + snapshots
+./export-engagement.sh acme-corp    # archive workspace + notes (hashed, timestamped) FIRST
+./close-engagement.sh acme-corp     # destroys VM + disk + snapshots (refuses if not exported)
 ```
 
-On an encrypted host, deletion leaves nothing recoverable at rest — treat "destroy the clone"
-as the deliverable-close checklist item, not an afterthought.
+`close` is irreversible and there is no snapshot or backup anywhere — everything on the clone
+(CherryTree notes, loot, report) is gone with the disk. Always `export-engagement.sh` first; the
+close guard enforces it. Archives land in `~/engagements-archive/` (override with `GOLDEN_ARCHIVE`).
+On an encrypted host, deletion of the clone leaves nothing recoverable at rest.
 
 ## Update the master
 

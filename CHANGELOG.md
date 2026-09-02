@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Version tags follow the
 `kali-baseline-vMAJOR.MINOR-YYYY-MM` scheme so a tag answers "what tools were present
 during testing" at a glance.
 
+## [v1.2-2026-09] — evidence retention
+
+### Added
+- **`export-engagement.sh`** / **`goldenctl export <id>`** — pull an engagement's workspace and
+  CherryTree notes off the clone into a **timestamped, SHA-256-hashed** archive (per-file manifest +
+  archive hash + metadata) for evidence retention. Works whether the clone is running (SSH) or shut
+  off (offline via `virt-copy-out`).
+- **Close guard** — `close-engagement.sh` now refuses to destroy an engagement that has no export,
+  unless you explicitly type an override. No more nuking un-exported evidence by reflex.
+
 ## [v1.1-2026-09] — CLI, VPN/my-resources, IaC scaffold
 
 ### Added

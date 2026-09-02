@@ -44,6 +44,7 @@ project deliberately takes the **VM road** and leans into the parts those tools 
 | `goldenctl ssh <id>` | shell into an engagement clone |
 | `goldenctl list` / `status` | show the master + clones and their addresses |
 | `goldenctl update` | refresh the master's toolset (`update-golden`) |
+| `goldenctl export <id>` | archive an engagement's work (hashed + timestamped) — do this before close |
 | `goldenctl close <id>` | destroy an engagement (VM + storage) |
 
 ## What's inside
@@ -74,6 +75,10 @@ The master is a **sealed template**, never a workspace — no client IPs, creds,
 `goldenctl new` clones it and generalizes the copy (fresh machine-id, SSH host keys, Metasploit DB,
 wiped BloodHound graph, empty workspace). `goldenctl close` destroys the VM, disk and snapshots.
 On an encrypted host, deletion leaves nothing recoverable at rest.
+
+Because close is irreversible, **run `goldenctl export <id>` first** — it pulls the workspace and
+CherryTree notes off the clone into a timestamped, SHA-256-hashed archive for evidence retention, and
+`close` refuses to destroy an engagement that has no export (unless you explicitly override).
 
 ## Repository layout
 
