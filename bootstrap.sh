@@ -58,8 +58,12 @@ for _ in $(seq 1 15); do ssh "${SSHOPTS[@]}" -o ConnectTimeout=5 "kali@$IP" true
 echo "[5/5] provisioning the toolset (this is the long part)"
 # passwordless sudo for the build window (default kali password), then provision
 ssh "${SSHOPTS[@]}" "kali@$IP" 'echo kali | sudo -S bash -c "echo \"kali ALL=(ALL) NOPASSWD:ALL\" >/etc/sudoers.d/99-build; chmod 440 /etc/sudoers.d/99-build"' || true
-scp "${SSHOPTS[@]}" "$HERE/provision-golden.sh" "$HERE/clean-master.sh" "$HERE/harden.sh" "kali@$IP:/tmp/"
+scp "${SSHOPTS[@]}" "$HERE/provision-golden.sh" "$HERE/clean-master.sh" "$HERE/harden.sh" \
+    "$HERE/firefox-setup.sh" "$HERE/policies.json" "$HERE/foxyproxy-import.json" "$HERE/PROXY-SETUP.txt" \
+    "kali@$IP:/tmp/"
 ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/provision-golden.sh'
+echo "[*] installing Firefox policy (bookmarks + extensions)"
+ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/firefox-setup.sh'
 # choose a password for the 'kali' user (SSH is key-only, so this is for console/sudo)
 KALI_PW=""
 while :; do

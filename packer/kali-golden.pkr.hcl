@@ -71,6 +71,27 @@ build {
     ]
   }
 
+  # Firefox policy: bookmarks + Wappalyzer + FoxyProxy (reads /tmp/policies.json)
+  provisioner "file" {
+    source      = "../firefox-setup.sh"
+    destination = "/tmp/firefox-setup.sh"
+  }
+  provisioner "file" {
+    source      = "../policies.json"
+    destination = "/tmp/policies.json"
+  }
+  provisioner "file" {
+    source      = "../foxyproxy-import.json"
+    destination = "/tmp/foxyproxy-import.json"
+  }
+  provisioner "file" {
+    source      = "../PROXY-SETUP.txt"
+    destination = "/tmp/PROXY-SETUP.txt"
+  }
+  provisioner "shell" {
+    inline = ["sudo bash /tmp/firefox-setup.sh"]
+  }
+
   provisioner "file" {
     source      = "../clean-master.sh"
     destination = "/tmp/clean-master.sh"
