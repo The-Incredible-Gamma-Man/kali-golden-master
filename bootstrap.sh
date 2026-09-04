@@ -144,11 +144,24 @@ ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/clean-master.sh'
 printf '%s\n' "$KALI_PW" | ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/harden.sh'
 ssh "${SSHOPTS[@]}" "kali@$IP" 'rm -f /tmp/clean-master.sh /tmp/harden.sh' 2>/dev/null || true
 
+# put the goldenctl CLI on PATH so it runs from anywhere. goldenctl resolves its
+# own real location (readlink -f), so a symlink back into this repo keeps working.
+GOLDEN_BIN=/usr/local/bin/goldenctl
+chmod +x "$HERE/goldenctl" 2>/dev/null || true
+if sudo ln -sfn "$HERE/goldenctl" "$GOLDEN_BIN" 2>/dev/null; then
+  echo "[*] installed 'goldenctl' -> $GOLDEN_BIN (run it from anywhere)"
+else
+  echo "[!] couldn't link into /usr/local/bin; run the CLI as $HERE/goldenctl"
+fi
+
 cat <<EOF
 
 Master '$GOLDEN_MASTER' built, sealed, and HARDENED (address: $IP).
   root locked | key-only SSH | UFW up (no ping) | gateway-only DNS | mDNS/LLMNR/BT off | passwordless sudo removed.
   The 'kali' user keeps its default password for console/sudo - ssh in and run 'passwd' to change it.
-Next: copy policies.json + firefox add-ons if wanted (RUNBOOK.md), shut it down, tag it,
-      then start engagements with:  goldenctl new <id>
+'goldenctl' is now on your PATH. Next: shut the master down, tag it, then:
+      goldenctl new <id>          # spin up an isolated engagement clone
+      goldenctl ssh <id>          # work inside it
+      goldenctl close <id>        # destroy it at close
+(optional: copy policies.json + firefox add-ons per RUNBOOK.md)
 EOF

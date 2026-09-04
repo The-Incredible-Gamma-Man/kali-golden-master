@@ -47,10 +47,12 @@ Grab a coffee — it takes a while.
 
 **2. Use it (offline from here on):**
 
+The build puts `goldenctl` on your PATH, so you can run it from anywhere:
+
 ```bash
-./goldenctl new acme-corp          # spin up a fresh VM for a job
-./goldenctl ssh acme-corp          # work happens only inside it
-./goldenctl close acme-corp        # wipe the VM when the job's done
+goldenctl new acme-corp            # spin up a fresh VM for a job
+goldenctl ssh acme-corp            # work happens only inside it
+goldenctl close acme-corp          # wipe the VM when the job's done
 ```
 
 Add `--vpn client.ovpn` to drop in a VPN config, or `--resources ./my-resources`
