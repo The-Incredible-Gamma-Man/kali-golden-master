@@ -40,7 +40,10 @@ preflight(){
   # libguestfs (virt-customize) builds an appliance that needs a real kernel image.
   # WSL2 / containers boot an external kernel and leave /boot empty, so supermin
   # can't find one - give it a kernel to use (the host keeps booting its own).
-  ls /boot/vmlinuz* >/dev/null 2>&1 || pkgs+=(linux-image-generic)
+  # Package name differs by distro: Ubuntu -> generic, Debian/Kali -> amd64.
+  if ! ls /boot/vmlinuz* >/dev/null 2>&1; then
+    if grep -qi ubuntu /etc/os-release 2>/dev/null; then pkgs+=(linux-image-generic); else pkgs+=(linux-image-amd64); fi
+  fi
 
   if [ ${#pkgs[@]} -gt 0 ]; then
     mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | sort -u)
@@ -122,7 +125,7 @@ sudo virt-install --name "$GOLDEN_MASTER" --memory "$VM_RAM_MB" --vcpus "$VM_VCP
   --graphics vnc,listen=127.0.0.1 --noautoconsole
 
 echo "[4/5] waiting for the VM to come up"
-IP=""; for _ in $(seq 1 40); do IP=$(sudo virsh -q domifaddr "$GOLDEN_MASTER" | awk '{print $4}' | cut -d/ -f1 | head -1); [ -n "$IP" ] && break; sleep 4; done
+IP=""; for _ in $(seq 1 40); do IP=$(sudo virsh -q domifaddr "$GOLDEN_MASTER" | awk '{print $4}' | cut -d/ -f1 | head -1 || true); [ -n "$IP" ] && break; sleep 4; done
 [ -n "$IP" ] || { echo "VM did not get an address"; exit 1; }
 for _ in $(seq 1 15); do ssh "${SSHOPTS[@]}" -o ConnectTimeout=5 "kali@$IP" true 2>/dev/null && break; sleep 4; done
 
@@ -138,9 +141,9 @@ ssh "${SSHOPTS[@]}" "kali@$IP" 'sudo bash /tmp/firefox-setup.sh'
 # choose a password for the 'kali' user (SSH is key-only, so this is for console/sudo)
 KALI_PW=""
 while :; do
-  read -rs -p "Set a password for the 'kali' user (blank = keep default 'kali'): " KALI_PW; echo
+  read -rs -p "Set a password for the 'kali' user (blank = keep default 'kali'): " KALI_PW || true; echo
   [ -z "$KALI_PW" ] && { echo "  (keeping default)"; break; }
-  read -rs -p "Confirm: " _pw2; echo
+  read -rs -p "Confirm: " _pw2 || true; echo
   [ "$KALI_PW" = "$_pw2" ] && break || echo "  didn't match, try again"
 done
 echo "[*] sealing + hardening (this removes the build-time passwordless sudo)"

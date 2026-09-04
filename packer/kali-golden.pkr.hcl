@@ -53,7 +53,9 @@ source "qemu" "kali-golden" {
   ssh_timeout          = "20m"
   output_directory     = "output-kali-golden"
   vm_name              = "kali-golden.qcow2"
-  shutdown_command     = "echo kali | sudo -S shutdown -P now"
+  # password-independent: harden.sh leaves a NOPASSWD power-off rule, so this works
+  # even after harden changes the 'kali' password / removes build-time NOPASSWD sudo.
+  shutdown_command     = "sudo -n shutdown -P now"
 }
 
 build {
@@ -108,6 +110,10 @@ build {
   }
 
   provisioner "shell" {
-    inline = ["printf '%s\\n' '${var.kali_password}' | sudo bash /tmp/harden.sh"]
+    # Pass the password via a (sensitive, log-redacted) env var and expand it inside
+    # double quotes, instead of interpolating it into a single-quoted shell literal -
+    # so a password containing a quote or other metacharacter can't break the command.
+    environment_vars = ["GOLDEN_KALI_PW=${var.kali_password}"]
+    inline           = ["printf '%s\\n' \"$GOLDEN_KALI_PW\" | sudo bash /tmp/harden.sh"]
   }
 }

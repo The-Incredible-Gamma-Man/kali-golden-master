@@ -34,14 +34,24 @@ if [ -n "$ip" ]; then
     echo "  [!] pull of ~/engagements/$ID failed (rc=$?) - MISSING dir or a PARTIAL/interrupted transfer"
     COLLECT_OK=0
   fi
-  # CherryTree notes: iterate line-by-line (filenames may contain spaces) rather
-  # than word-splitting an unquoted variable.
+  # CherryTree notes: enumerate them, distinguishing an SSH TRANSPORT failure (which
+  # would silently hide notes) from a genuine "no notes". The trailing remote 'true'
+  # makes ssh exit 0 whenever the connection works, so a non-zero rc means transport
+  # failed - not that there were no notes. Iterate line-by-line (filenames may contain
+  # spaces) rather than word-splitting an unquoted variable.
+  set +e
+  notes_list=$(ssh "${SSHOPTS[@]}" "kali@$ip" "ls ~/*.ctb ~/Desktop/*.ctb ~/engagements/$ID/*.ctb 2>/dev/null; true")
+  ssh_rc=$?
+  set -e
+  if [ "$ssh_rc" -ne 0 ]; then
+    echo "  [!] SSH failed while enumerating notes (rc=$ssh_rc) - notes may be MISSING from this archive"; COLLECT_OK=0
+  fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if ! scp "${SSHOPTS[@]}" "kali@$ip:$f" "$STAGE/notes-$(basename "$f")"; then
       echo "  [!] failed to pull note: $f"; COLLECT_OK=0
     fi
-  done < <(ssh "${SSHOPTS[@]}" "kali@$ip" "ls ~/*.ctb ~/Desktop/*.ctb ~/engagements/$ID/*.ctb 2>/dev/null" || true)
+  done <<< "$notes_list"
 else
   echo "[*] clone not running - extracting from disk offline (virt-copy-out)"
   disk="/var/lib/libvirt/images/engagements/${NAME}.qcow2"

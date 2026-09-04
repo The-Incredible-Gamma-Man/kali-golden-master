@@ -41,7 +41,7 @@ try_apt ufw
 
 sec "PIPX GLOBAL TOOLS (nxc supplied by apt netexec)"
 for p in certipy-ad coercer pywerview man-spider bloodhound-ce autorecon; do PGX install "$p" || echo "PIPX_FAIL $p">>"$FAILED"; done
-PGX install --python /usr/bin/python3.13 "git+https://github.com/login-securite/DonPAPI.git" || echo "PIPX_FAIL donpapi">>"$FAILED"
+PGX install --python python3 "git+https://github.com/login-securite/DonPAPI.git" || echo "PIPX_FAIL donpapi">>"$FAILED"
 
 sec "NSE: vulners + vulscan"
 [ -d /usr/share/nmap/scripts/nmap-vulners ] || git clone --depth 1 https://github.com/vulnersCom/nmap-vulners /usr/share/nmap/scripts/nmap-vulners || echo "GIT_FAIL vulners">>"$FAILED"
@@ -54,15 +54,29 @@ searchsploit -u || echo "searchsploit -u failed">>"$FAILED"
 
 sec "OFFLINE /opt TOOLING"
 mkdir -p /opt/tools/bin /opt/peass /opt/pspy
-curl -fsSL -o /opt/tools/bin/kerbrute https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64 && chmod +x /opt/tools/bin/kerbrute
-curl -fsSL -o /opt/peass/linpeas.sh https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh && chmod +x /opt/peass/linpeas.sh
-curl -fsSL -o /opt/peass/winPEASx64.exe https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASx64.exe
-curl -fsSL -o /opt/peass/winPEASany.exe https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASany.exe
-curl -fsSL -o /opt/pspy/pspy64 https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64 && chmod +x /opt/pspy/pspy64
-# dalfox: fetch newest linux-x86_64 tarball by asset name
-DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest | grep -oE 'https://[^"]*linux-x86_64\.tar\.gz' | head -1)
-[ -n "$DURL" ] && wget -q --tries=4 -O /tmp/dalfox.tgz "$DURL" && tar -xzf /tmp/dalfox.tgz -C /tmp && cp "$(find /tmp -type f -name dalfox|head -1)" /opt/tools/bin/dalfox && chmod +x /opt/tools/bin/dalfox
-[ -d /opt/PayloadsAllTheThings ] || git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt/PayloadsAllTheThings
+# fetch a binary with hard HTTP errors (-f, so a 404/HTML body isn't chmod'd as a
+# tool) and log misses to $FAILED like the apt/pipx steps do. 3rd arg 'x' => +x.
+dlbin(){
+  if curl -fsSL -o "$1" "$2"; then [ "${3:-}" = x ] && chmod +x "$1"; return 0; fi
+  echo "DL_FAIL $(basename "$1")">>"$FAILED"; rm -f "$1"; return 0
+}
+dlbin /opt/tools/bin/kerbrute   https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64 x
+dlbin /opt/peass/linpeas.sh     https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh x
+dlbin /opt/peass/winPEASx64.exe https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASx64.exe
+dlbin /opt/peass/winPEASany.exe https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASany.exe
+dlbin /opt/pspy/pspy64          https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64 x
+# dalfox: match the REAL asset name (dalfox_Linux_x86_64.tar.gz - capital L, underscore)
+# and extract in a private mktemp dir so a stray /tmp 'dalfox' can't be picked up.
+DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest | grep -oiE 'https://[^"]*dalfox_[Ll]inux_x86_64\.tar\.gz' | head -1 || true)
+if [ -n "$DURL" ]; then
+  dtmp=$(mktemp -d)
+  if wget -q --tries=4 -O "$dtmp/dalfox.tgz" "$DURL" && tar -xzf "$dtmp/dalfox.tgz" -C "$dtmp"; then
+    df=$(find "$dtmp" -type f -name dalfox | head -1 || true)
+    { [ -n "$df" ] && cp "$df" /opt/tools/bin/dalfox && chmod +x /opt/tools/bin/dalfox; } || echo "DL_FAIL dalfox">>"$FAILED"
+  else echo "DL_FAIL dalfox">>"$FAILED"; fi
+  rm -rf "$dtmp"
+else echo "DL_FAIL dalfox">>"$FAILED"; fi
+[ -d /opt/PayloadsAllTheThings ] || git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt/PayloadsAllTheThings || echo "GIT_FAIL PayloadsAllTheThings">>"$FAILED"
 echo 'export PATH=$PATH:/opt/tools/bin' > /etc/profile.d/golden-tools.sh
 runuser -l kali -c 'nuclei -update-templates' || echo "nuclei templates(kali) failed">>"$FAILED"
 

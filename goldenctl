@@ -26,7 +26,7 @@ SSHOPTS=(-i "$GOLDEN_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev
 
 die(){ echo "goldenctl: $*" >&2; exit 1; }
 have(){ command -v "$1" >/dev/null 2>&1; }
-clone_ip(){ $VIRSH -q domifaddr "$1" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1; }
+clone_ip(){ $VIRSH -q domifaddr "$1" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1 || true; }  # '|| true': head can SIGPIPE upstream under pipefail; this runs in $(...) under set -e
 wait_ip(){ local n="$1" ip=""; for _ in $(seq 1 30); do ip=$(clone_ip "$n"); [ -n "$ip" ] && { echo "$ip"; return; }; sleep 4; done; }
 
 usage(){ sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
@@ -37,7 +37,7 @@ cmd_list(){ $VIRSH list --all | awk 'NR<=2 || /kali-golden|eng-/'; }
 
 cmd_status(){
   printf '%-22s %-10s %s\n' DOMAIN STATE ADDRESS
-  $VIRSH list --all --name | grep -E "^${GOLDEN_MASTER}$|^eng-" | while read -r d; do
+  $VIRSH list --all --name | { grep -E "^${GOLDEN_MASTER}$|^eng-" || true; } | while read -r d; do
     [ -z "$d" ] && continue
     printf '%-22s %-10s %s\n' "$d" "$($VIRSH domstate "$d" 2>/dev/null)" "$(clone_ip "$d")"
   done

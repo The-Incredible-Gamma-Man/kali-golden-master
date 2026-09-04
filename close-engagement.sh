@@ -8,16 +8,29 @@ ID="${1:?usage: close-engagement <client-id>}"
 NAME="eng-${ID}"
 
 # Evidence guard: refuse to destroy unexported work.
-# Match BOTH plaintext and age-encrypted exports - export-engagement.sh deletes the
-# plaintext .tar.gz when GOLDEN_AGE_RECIPIENT is set, so a *.tar.gz-only glob would
-# go blind exactly when encryption is on. (Listed explicitly, not *.tar.gz*, so a
-# stray .sha256/.asc/.meta can't satisfy the guard by itself.)
+# Match BOTH plaintext and age-encrypted exports, and ANCHOR the id to the export
+# timestamp (<id>-YYYYMMDDTHHMMSSZ...) so a longer sibling id can't satisfy it -
+# e.g. closing 'acme' must not be fooled by an 'acme-corp-<ts>' archive. The
+# '.age' variant is listed because encryption deletes the plaintext .tar.gz.
 DEST="${GOLDEN_ARCHIVE:-$HOME/engagements-archive}"
+TS='20[0-9][0-9][0-1][0-9][0-3][0-9]T[0-2][0-9][0-5][0-9][0-5][0-9]Z'
 shopt -s nullglob
-EXPORTS=( "$DEST/${ID}-"*.tar.gz "$DEST/${ID}-"*.tar.gz.age )
+EXPORTS=( "$DEST/${ID}-"$TS.tar.gz "$DEST/${ID}-"$TS.tar.gz.age )
 shopt -u nullglob
 if [ "${#EXPORTS[@]}" -gt 0 ]; then
-  echo "[i] evidence export present: ${EXPORTS[-1]}"
+  latest="${EXPORTS[-1]}"
+  # honour export-engagement.sh's own completeness verdict: it still writes an
+  # archive on a partial pull but records 'complete: NO' and exits 2 - don't let
+  # that satisfy the guard silently.
+  meta="${latest%.tar.gz*}.meta.txt"
+  if [ -f "$meta" ] && grep -qiE '^complete[[:space:]]*:[[:space:]]*NO' "$meta"; then
+    echo "!! Latest export for '$ID' is marked INCOMPLETE: $latest"
+    echo "   (transfers failed during export - see $(basename "$meta"))"
+    read -rp "Destroy anyway against an INCOMPLETE export? type 'destroy-without-export': " G
+    [ "$G" = "destroy-without-export" ] || { echo "aborted - re-export first (good call)."; exit 1; }
+  else
+    echo "[i] evidence export present: $latest"
+  fi
 else
   echo "!! No evidence export found for '$ID' in $DEST"
   echo "   Everything on this clone (CherryTree notes, loot, report) is about to be destroyed"

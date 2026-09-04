@@ -66,6 +66,14 @@ fi
 
 echo "[*] remove the build-time passwordless sudo (default behaviour restored)"
 rm -f /etc/sudoers.d/99-build
+# Leave a narrow, benign NOPASSWD rule for local power-off only (matches the desktop
+# polkit behaviour any logged-in user already has), so an unattended builder - e.g.
+# packer's shutdown_command - can cleanly power the sealed image off now that the
+# build-time NOPASSWD sudo is gone, regardless of the chosen 'kali' password.
+cat >/etc/sudoers.d/10-poweroff <<'SUD'
+%sudo ALL=(ALL) NOPASSWD: /usr/sbin/poweroff, /sbin/poweroff, /usr/sbin/reboot, /sbin/reboot, /usr/sbin/shutdown, /sbin/shutdown, /usr/sbin/halt, /sbin/halt
+SUD
+chmod 440 /etc/sudoers.d/10-poweroff
 
 if [ "${UFW_OK:-0}" != 1 ]; then FW="UFW MISSING (no inbound firewall!)"
 elif [ "${PING_DROP:-0}" = 1 ]; then FW="UFW up (no ping)"

@@ -69,16 +69,31 @@ for r in /opt/PayloadsAllTheThings /usr/share/nmap/scripts/nmap-vulners /usr/sha
 done
 
 sudo mkdir -p "$BIN" "$PEASS" "$DEPLOY"
-dl(){ sudo wget -q --tries=3 --timeout=30 -O "$1" "$2" && ok "bin: $(basename "$1")" || warn "bin FAILED: $(basename "$1")"; }
+# download to a temp then move on success+non-empty, so a failed/partial fetch
+# never overwrites a previously-good binary with a 0-byte or truncated file
+dl(){
+  if sudo wget -q --tries=3 --timeout=30 -O "$1.tmp" "$2" && [ -s "$1.tmp" ]; then
+    sudo mv "$1.tmp" "$1"; ok "bin: $(basename "$1")"
+  else
+    sudo rm -f "$1.tmp"; warn "bin FAILED (kept previous): $(basename "$1")"
+  fi
+}
 dl "$BIN/kerbrute"        https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64
 dl "$PEASS/linpeas.sh"    https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh
 dl "$PEASS/winPEASx64.exe" https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASx64.exe
 dl "$PEASS/winPEASany.exe" https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASany.exe
 dl "$DEPLOY/pspy64"       https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64
-DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest 2>/dev/null | grep -oE 'https://[^"]*linux-x86_64\.tar\.gz' | head -1)
-if [ -n "$DURL" ] && wget -q --tries=3 -O /tmp/dalfox.tgz "$DURL"; then
-  tar -xzf /tmp/dalfox.tgz -C /tmp 2>/dev/null && sudo cp "$(find /tmp -type f -name dalfox|head -1)" "$BIN/dalfox" 2>/dev/null && ok "bin: dalfox"
-fi
+# match the real asset name (dalfox_Linux_x86_64.tar.gz) and extract in a private
+# mktemp dir so a predictable /tmp path / stray 'dalfox' can't be picked up
+DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest 2>/dev/null | grep -oiE 'https://[^"]*dalfox_[Ll]inux_x86_64\.tar\.gz' | head -1 || true)
+if [ -n "$DURL" ]; then
+  dtmp=$(mktemp -d)
+  if wget -q --tries=3 -O "$dtmp/dalfox.tgz" "$DURL" && tar -xzf "$dtmp/dalfox.tgz" -C "$dtmp" 2>/dev/null; then
+    df=$(find "$dtmp" -type f -name dalfox | head -1 || true)
+    { [ -n "$df" ] && sudo cp "$df" "$BIN/dalfox" && ok "bin: dalfox"; } || warn "bin FAILED: dalfox"
+  else warn "bin FAILED: dalfox"; fi
+  rm -rf "$dtmp"
+else warn "bin FAILED: dalfox (no asset URL)"; fi
 sudo chmod +x "$BIN"/* "$PEASS/linpeas.sh" "$DEPLOY/pspy64" 2>/dev/null
 # keep the deploy folder in sync
 sudo cp -f "$PEASS/linpeas.sh" "$PEASS/winPEASx64.exe" "$PEASS/winPEASany.exe" "$DEPLOY/" 2>/dev/null
