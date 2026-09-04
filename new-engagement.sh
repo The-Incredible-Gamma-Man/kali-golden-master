@@ -6,10 +6,15 @@
 # root locked, gateway-only DNS, slimmed services, full toolset.
 set -euo pipefail
 ID="${1:?usage: new-engagement <client-id>}"
+# The id reaches a guest firstboot *shell* command, a root sed over /etc/hosts,
+# and filesystem paths - so constrain it to safe characters (no spaces, quotes,
+# ';', or regex/shell metacharacters).
+[[ "$ID" =~ ^[a-z0-9][a-z0-9-]{0,30}$ ]] \
+  || { echo "ERROR: id must be [a-z0-9][a-z0-9-]{0,30} (lowercase letters, digits, hyphens)"; exit 1; }
 MASTER=kali-golden; POOL=/var/lib/libvirt/images/engagements
 NAME="eng-${ID}"; DISK="${POOL}/${NAME}.qcow2"
 KEY="${GOLDEN_KEY:-$HOME/.ssh/kali-golden_build_key}"
-OPTS="-i $KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+GWDNS="${GATEWAY_DNS:-192.168.122.1}"   # DNS gateway pushed into the clone (override for bridged/on-net modes)
 
 [ -e "$DISK" ] && { echo "ERROR: clone $NAME already exists"; exit 1; }
 sudo virsh domstate "$MASTER" 2>/dev/null | grep -q 'shut off' \
@@ -23,7 +28,7 @@ sudo virt-clone --original "$MASTER" --name "$NAME" --file "$DISK"
 
 echo "[*] Generalising (fresh identity; keep authorized_keys; reassert gateway DNS)"
 sudo virt-sysprep -d "$NAME" --hostname "$NAME" --operations defaults,-ssh-userdir \
-  --firstboot-command 'printf "nameserver 192.168.122.1\noptions edns0\n" > /etc/resolv.conf' \
+  --firstboot-command "printf 'nameserver ${GWDNS}\noptions edns0\n' > /etc/resolv.conf" \
   --firstboot-command 'msfdb reinit || true' \
   --firstboot-command 'systemctl stop neo4j 2>/dev/null; rm -rf /var/lib/neo4j/data/databases/* /var/lib/neo4j/data/transactions/* 2>/dev/null; true' \
   --firstboot-command "runuser -l kali -c 'mkdir -p ~/engagements/${ID}/{recon,loot,creds,screenshots,report}'" \
@@ -37,12 +42,17 @@ sudo virsh net-info default 2>/dev/null | grep -qiE '^Active: +yes' \
   || sudo virsh net-start default 2>/dev/null || true
 sudo virsh start "$NAME"
 IP=""
-for i in $(seq 1 30); do
-  IP=$(sudo virsh -q domifaddr "$NAME" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
-  [ -n "$IP" ] && break; sleep 4
+for _ in $(seq 1 30); do
+  # '|| true' keeps a slow lease (or a SIGPIPE from 'head' under pipefail) from
+  # tripping 'set -e' and killing the wait before the clone has finished booting.
+  IP=$(sudo virsh -q domifaddr "$NAME" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1 || true)
+  [ -n "$IP" ] && break
+  sleep 4
 done
-# register clone in /etc/hosts as eng-<id>
+# register clone in /etc/hosts as eng-<id> (if/then so an empty IP can't abort us)
 sudo sed -i "/[[:space:]]${NAME}\$/d" /etc/hosts
-[ -n "$IP" ] && echo "$IP   ${NAME}" | sudo tee -a /etc/hosts >/dev/null
-echo "[+] $NAME running at ${IP:-<pending>}  (hosts: ${NAME})"
+if [ -n "$IP" ]; then
+  echo "$IP   ${NAME}" | sudo tee -a /etc/hosts >/dev/null
+fi
+echo "[+] $NAME running at ${IP:-<pending, slow boot - re-check with: virsh -c qemu:///system domifaddr $NAME>}  (hosts: ${NAME})"
 echo "    ssh -i $KEY kali@${NAME}      workspace: ~/engagements/${ID}"

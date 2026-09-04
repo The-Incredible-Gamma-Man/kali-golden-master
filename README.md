@@ -5,7 +5,7 @@
 ![Shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnubash&logoColor=white)
 ![Hypervisor](https://img.shields.io/badge/hypervisor-libvirt%2FKVM-CC0000?logo=redhat&logoColor=white)
 ![OPSEC](https://img.shields.io/badge/OPSEC-hardened-blue.svg)
-![Airgap](https://img.shields.io/badge/airgap-ready-informational.svg)
+![Airgap](https://img.shields.io/badge/airgap-capable%20(runtime)-informational.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
 An **OPSEC-hardened, airgap-ready Kali Linux golden image** for authorized penetration testing —
@@ -18,8 +18,10 @@ project deliberately takes the **VM road** and leans into the parts those tools 
 - **Kernel-level isolation** — a real VM boundary per engagement, not a shared kernel.
 - **OPSEC hardening as a first-class feature** — mDNS/LLMNR/Bluetooth off, gateway-only DNS,
   default-deny inbound with no ping, key-only SSH, root locked. A clone stays quiet on a client LAN.
-- **Airgap-ready** — an offline cheatsheet, wordlists, exploit DB and a grab-and-go payload kit are
-  baked in; once the master is built, engagements run with **no connectivity at all**.
+- **Airgap-capable at runtime** — an offline cheatsheet, wordlists, exploit DB and a grab-and-go
+  payload kit are baked in, so once the master is built an engagement clone **runs with no
+  connectivity**. (The *build* itself and `goldenctl update` still need the internet; fully offline
+  build/update mirrors are on the [roadmap](#roadmap), not shipped yet.)
 - **Reproducible-as-code** — the image is a build artifact; this repo is the source of truth, so a
   tagged version answers "what tools were present during testing" from a commit.
 
@@ -138,5 +140,7 @@ MIT — see [`LICENSE`](LICENSE).
 > system you point these tools at.
 
 ## AI Declaration
-This tool was made entirely with Claude Opus 4.8 under strict guidance and instruction. Every tool and feature of the product is deliberate, based on modern offensive cyber methodologies and personal preferences.
-Each line of code in the startup and teardown scripts have been manually reviewed.
+This tool was built with Claude Opus 4.8 under close guidance. The design and every feature are
+deliberate, grounded in modern offensive methodology and personal preference. The scripts have been
+reviewed and tested on the supported build path — but, like any code, they may still contain bugs.
+Issues and PRs are welcome.

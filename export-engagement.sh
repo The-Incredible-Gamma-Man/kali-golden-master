@@ -9,6 +9,8 @@
 # clone is running (over SSH) or shut off (offline via virt-copy-out).
 set -euo pipefail
 ID="${1:?usage: export-engagement.sh <client-id> [dest-dir]}"
+[[ "$ID" =~ ^[a-z0-9][a-z0-9-]{0,30}$ ]] \
+  || { echo "ERROR: id must be [a-z0-9][a-z0-9-]{0,30} (lowercase letters, digits, hyphens)"; exit 1; }
 DEST="${2:-${GOLDEN_ARCHIVE:-$HOME/engagements-archive}}"
 NAME="eng-${ID}"
 KEY="${GOLDEN_KEY:-$HOME/.ssh/kali-golden_build_key}"
@@ -20,17 +22,34 @@ STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$DEST"
 OUT="$DEST/${ID}-${TS}"
 
-ip=$($VIRSH -q domifaddr "$NAME" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
+ip=$($VIRSH -q domifaddr "$NAME" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1 || true)
+# This is the one script where a *silent* failure is unrecoverable (you close the
+# VM afterwards), so transfer errors are surfaced loudly and flip COLLECT_OK.
+COLLECT_OK=1
 if [ -n "$ip" ]; then
   echo "[*] clone running ($ip) - pulling workspace + notes over SSH"
-  scp -r "${SSHOPTS[@]}" "kali@$ip:engagements/$ID" "$STAGE/" 2>/dev/null || echo "  (no workspace dir ~/engagements/$ID)"
-  notes=$(ssh "${SSHOPTS[@]}" "kali@$ip" "ls ~/*.ctb ~/Desktop/*.ctb ~/engagements/$ID/*.ctb 2>/dev/null" || true)
-  for f in $notes; do scp "${SSHOPTS[@]}" "kali@$ip:$f" "$STAGE/notes-$(basename "$f")" 2>/dev/null || true; done
+  if scp -r "${SSHOPTS[@]}" "kali@$ip:engagements/$ID" "$STAGE/"; then
+    :
+  else
+    echo "  [!] pull of ~/engagements/$ID failed (rc=$?) - MISSING dir or a PARTIAL/interrupted transfer"
+    COLLECT_OK=0
+  fi
+  # CherryTree notes: iterate line-by-line (filenames may contain spaces) rather
+  # than word-splitting an unquoted variable.
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if ! scp "${SSHOPTS[@]}" "kali@$ip:$f" "$STAGE/notes-$(basename "$f")"; then
+      echo "  [!] failed to pull note: $f"; COLLECT_OK=0
+    fi
+  done < <(ssh "${SSHOPTS[@]}" "kali@$ip" "ls ~/*.ctb ~/Desktop/*.ctb ~/engagements/$ID/*.ctb 2>/dev/null" || true)
 else
   echo "[*] clone not running - extracting from disk offline (virt-copy-out)"
   disk="/var/lib/libvirt/images/engagements/${NAME}.qcow2"
   [ -f "$disk" ] || { echo "ERROR: no running clone and no disk at $disk"; exit 1; }
-  sudo virt-copy-out -a "$disk" "/home/kali/engagements/$ID" "$STAGE/" 2>/dev/null || echo "  (workspace not found on disk)"
+  if ! sudo virt-copy-out -a "$disk" "/home/kali/engagements/$ID" "$STAGE/"; then
+    echo "  [!] virt-copy-out of the workspace failed - archive may be INCOMPLETE"
+    COLLECT_OK=0
+  fi
 fi
 
 if [ -z "$(ls -A "$STAGE" 2>/dev/null)" ]; then
@@ -42,17 +61,55 @@ echo "[*] hashing + archiving"
 ( cd "$STAGE" && find . -type f -exec sha256sum {} \; ) > "$OUT.manifest.sha256"
 tar -C "$STAGE" -czf "$OUT.tar.gz" .
 sha256sum "$OUT.tar.gz" | awk '{print $1}' > "$OUT.tar.gz.sha256"
+
+# --- optional chain-of-custody: detach-sign the archive -----------------------
+# A bare host-computed SHA-256 is not tamper-evident (whoever can edit the tarball
+# recomputes the hash). Set GOLDEN_SIGN_KEY=<gpg key id/email> - ideally a key that
+# never lives on the engagement host - to attach a detached signature.
+SIG=""
+if [ -n "${GOLDEN_SIGN_KEY:-}" ] && command -v gpg >/dev/null; then
+  if gpg --local-user "$GOLDEN_SIGN_KEY" --armor --detach-sign --output "$OUT.tar.gz.asc" "$OUT.tar.gz"; then
+    SIG="$OUT.tar.gz.asc"
+  else echo "  [!] GPG signing FAILED - archive left unsigned"; fi
+else
+  echo "  [!] archive is UNSIGNED - a bare hash is not tamper-evident (set GOLDEN_SIGN_KEY=<gpg key> to detach-sign)"
+fi
+
+# --- optional at-rest encryption ----------------------------------------------
+# The archive holds client loot and credentials in plaintext; host FDE only covers
+# theft of the powered-off machine. Set GOLDEN_AGE_RECIPIENT=<age pubkey> to encrypt.
+ARCHIVE="$OUT.tar.gz"
+if [ -n "${GOLDEN_AGE_RECIPIENT:-}" ] && command -v age >/dev/null; then
+  if age -r "$GOLDEN_AGE_RECIPIENT" -o "$OUT.tar.gz.age" "$OUT.tar.gz"; then
+    [ -n "$SIG" ] && echo "  (signature is over the plaintext .tar.gz - verify it after decrypting)"
+    rm -f "$OUT.tar.gz"; ARCHIVE="$OUT.tar.gz.age"
+    echo "  [*] encrypted at rest -> $(basename "$ARCHIVE") (plaintext removed)"
+  else echo "  [!] age encryption FAILED - leaving plaintext archive"; fi
+else
+  echo "  [!] archive is UNENCRYPTED at rest - it contains loot/creds (set GOLDEN_AGE_RECIPIENT=<age pubkey> to encrypt)"
+fi
+
 cat > "$OUT.meta.txt" <<META
 engagement : $ID
 exported   : $TS (UTC)
 source_vm  : $NAME
-archive    : $(basename "$OUT.tar.gz")
-sha256     : $(cat "$OUT.tar.gz.sha256")
+archive    : $(basename "$ARCHIVE")
+sha256     : $(cat "$OUT.tar.gz.sha256")   # over the plaintext .tar.gz
+signature  : $( [ -n "$SIG" ] && basename "$SIG" || echo "(none - UNSIGNED)" )
+encrypted  : $( [ "$ARCHIVE" != "$OUT.tar.gz" ] && echo yes || echo "no (PLAINTEXT)" )
+complete   : $( [ "$COLLECT_OK" = 1 ] && echo yes || echo "NO - some transfers failed" )
 files      : $(wc -l < "$OUT.manifest.sha256")
 META
 
-echo "[+] evidence archive : $OUT.tar.gz"
+echo "[+] evidence archive : $ARCHIVE"
 echo "    archive sha256   : $OUT.tar.gz.sha256"
 echo "    per-file manifest: $OUT.manifest.sha256"
 echo "    metadata         : $OUT.meta.txt"
-echo "    -> safe to close the engagement now: close-engagement.sh $ID"
+[ -n "$SIG" ] && echo "    signature        : $SIG"
+if [ "$COLLECT_OK" = 1 ]; then
+  echo "    -> collection OK; safe to close: close-engagement.sh $ID"
+else
+  echo "    -> WARNING: one or more transfers FAILED above - this archive may be INCOMPLETE."
+  echo "       Do NOT close the engagement until you've verified its contents against the clone."
+  exit 2
+fi

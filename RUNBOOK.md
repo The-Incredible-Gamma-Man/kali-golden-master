@@ -68,3 +68,11 @@ sudo bash clean-master.sh
 - AI-assisted / autonomous tooling and any tool that transmits engagement data off-box should be
   added to a clone per engagement — after confirming the scope permits it — never baked into the
   master.
+- **Offensive-tool authorization**: the baseline includes mimikatz and the PsTools / Windows
+  resources. In defence/government enclaves (and some regulated clients) carrying these often
+  requires **prior written authorization**, and sometimes **hash pre-registration with the client
+  SOC**. Clear it during scoping — not at the gate — before connecting a clone to their network.
+- **Evidence egress**: `export-engagement.sh` produces one archive with loot and creds together.
+  In enclaves where egress is a governed/reviewed process, produce a *reviewed-artifacts* subset the
+  client can inspect before it crosses the boundary, and encrypt the full archive
+  (`GOLDEN_AGE_RECIPIENT`) and sign it (`GOLDEN_SIGN_KEY`) so it is attestable, not just hashed.

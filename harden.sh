@@ -24,6 +24,14 @@ if command -v ufw >/dev/null 2>&1; then
   ufw allow 22/tcp >/dev/null
   sed -i 's/^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT/-A ufw-before-input -p icmp --icmp-type echo-request -j DROP/' /etc/ufw/before.rules 2>/dev/null || true
   sed -i 's/^-A ufw6-before-input -p ipv6-icmp --icmp-type echo-request -j ACCEPT/-A ufw6-before-input -p ipv6-icmp --icmp-type echo-request -j DROP/' /etc/ufw/before6.rules 2>/dev/null || true
+  # verify the drop actually took - the upstream before.rules line can change and a
+  # silent sed no-op would leave us answering pings on a client LAN.
+  if grep -qE '^-A ufw-before-input -p icmp --icmp-type echo-request -j DROP' /etc/ufw/before.rules; then
+    PING_DROP=1
+  else
+    PING_DROP=0
+    echo "[!] ICMP echo-request DROP NOT applied (before.rules format changed?) - host may still answer pings"
+  fi
   ufw --force enable >/dev/null; systemctl enable ufw >/dev/null 2>&1 || true
   UFW_OK=1
 else
@@ -59,7 +67,9 @@ fi
 echo "[*] remove the build-time passwordless sudo (default behaviour restored)"
 rm -f /etc/sudoers.d/99-build
 
-if [ "${UFW_OK:-0}" = 1 ]; then FW="UFW up (no ping)"; else FW="UFW MISSING (no inbound firewall!)"; fi
+if [ "${UFW_OK:-0}" != 1 ]; then FW="UFW MISSING (no inbound firewall!)"
+elif [ "${PING_DROP:-0}" = 1 ]; then FW="UFW up (no ping)"
+else FW="UFW up (WARNING: still answers ping)"; fi
 cat <<EOF
 [+] Hardening applied: $FW, root locked, key-only SSH, gateway-only DNS, mDNS/LLMNR/BT off.
     SSH is key-only, so remote access does NOT depend on a password (it is only for console/sudo).
