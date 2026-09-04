@@ -62,43 +62,46 @@ echo "[*] hashing + archiving"
 tar -C "$STAGE" -czf "$OUT.tar.gz" .
 sha256sum "$OUT.tar.gz" | awk '{print $1}' > "$OUT.tar.gz.sha256"
 
-# --- optional chain-of-custody: detach-sign the archive -----------------------
-# A bare host-computed SHA-256 is not tamper-evident (whoever can edit the tarball
-# recomputes the hash). Set GOLDEN_SIGN_KEY=<gpg key id/email> - ideally a key that
-# never lives on the engagement host - to attach a detached signature.
-SIG=""
-if [ -n "${GOLDEN_SIGN_KEY:-}" ] && command -v gpg >/dev/null; then
-  if gpg --local-user "$GOLDEN_SIGN_KEY" --armor --detach-sign --output "$OUT.tar.gz.asc" "$OUT.tar.gz"; then
-    SIG="$OUT.tar.gz.asc"
-  else echo "  [!] GPG signing FAILED - archive left unsigned"; fi
-else
-  echo "  [!] archive is UNSIGNED - a bare hash is not tamper-evident (set GOLDEN_SIGN_KEY=<gpg key> to detach-sign)"
-fi
-
-# --- optional at-rest encryption ----------------------------------------------
+# --- optional at-rest encryption (BEFORE signing, so the signature covers the
+#     final artifact rather than a plaintext we then delete) --------------------
 # The archive holds client loot and credentials in plaintext; host FDE only covers
 # theft of the powered-off machine. Set GOLDEN_AGE_RECIPIENT=<age pubkey> to encrypt.
 ARCHIVE="$OUT.tar.gz"
 if [ -n "${GOLDEN_AGE_RECIPIENT:-}" ] && command -v age >/dev/null; then
   if age -r "$GOLDEN_AGE_RECIPIENT" -o "$OUT.tar.gz.age" "$OUT.tar.gz"; then
-    [ -n "$SIG" ] && echo "  (signature is over the plaintext .tar.gz - verify it after decrypting)"
     rm -f "$OUT.tar.gz"; ARCHIVE="$OUT.tar.gz.age"
     echo "  [*] encrypted at rest -> $(basename "$ARCHIVE") (plaintext removed)"
   else echo "  [!] age encryption FAILED - leaving plaintext archive"; fi
 else
   echo "  [!] archive is UNENCRYPTED at rest - it contains loot/creds (set GOLDEN_AGE_RECIPIENT=<age pubkey> to encrypt)"
 fi
+ARCHIVE_SHA=$(sha256sum "$ARCHIVE" | awk '{print $1}')   # hash of the artifact actually stored
+
+# --- optional chain-of-custody: detach-sign the FINAL archive -----------------
+# A bare host-computed hash is not tamper-evident (whoever edits the file recomputes
+# it). Signing the artifact-as-stored means a holder of only the ciphertext (e.g. the
+# client) can verify it WITHOUT the age key. Set GOLDEN_SIGN_KEY=<gpg key id/email>,
+# ideally a key that never lives on the engagement host.
+SIG=""
+if [ -n "${GOLDEN_SIGN_KEY:-}" ] && command -v gpg >/dev/null; then
+  if gpg --local-user "$GOLDEN_SIGN_KEY" --armor --detach-sign --output "$ARCHIVE.asc" "$ARCHIVE"; then
+    SIG="$ARCHIVE.asc"
+  else echo "  [!] GPG signing FAILED - archive left unsigned"; fi
+else
+  echo "  [!] archive is UNSIGNED - a bare hash is not tamper-evident (set GOLDEN_SIGN_KEY=<gpg key> to detach-sign)"
+fi
 
 cat > "$OUT.meta.txt" <<META
-engagement : $ID
-exported   : $TS (UTC)
-source_vm  : $NAME
-archive    : $(basename "$ARCHIVE")
-sha256     : $(cat "$OUT.tar.gz.sha256")   # over the plaintext .tar.gz
-signature  : $( [ -n "$SIG" ] && basename "$SIG" || echo "(none - UNSIGNED)" )
-encrypted  : $( [ "$ARCHIVE" != "$OUT.tar.gz" ] && echo yes || echo "no (PLAINTEXT)" )
-complete   : $( [ "$COLLECT_OK" = 1 ] && echo yes || echo "NO - some transfers failed" )
-files      : $(wc -l < "$OUT.manifest.sha256")
+engagement      : $ID
+exported        : $TS (UTC)
+source_vm       : $NAME
+archive         : $(basename "$ARCHIVE")
+archive_sha256  : $ARCHIVE_SHA   # over the stored artifact - what the signature covers
+plaintext_sha256: $(cat "$OUT.tar.gz.sha256")   # over the pre-encryption .tar.gz
+signature       : $( [ -n "$SIG" ] && basename "$SIG" || echo "(none - UNSIGNED)" )
+encrypted       : $( [ "$ARCHIVE" != "$OUT.tar.gz" ] && echo yes || echo "no (PLAINTEXT)" )
+complete        : $( [ "$COLLECT_OK" = 1 ] && echo yes || echo "NO - some transfers failed" )
+files           : $(wc -l < "$OUT.manifest.sha256")
 META
 
 echo "[+] evidence archive : $ARCHIVE"

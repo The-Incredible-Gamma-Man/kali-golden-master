@@ -2,12 +2,22 @@
 # Destroy an engagement clone at close: power off, remove VM + storage + hosts entry.
 # Host storage is full-disk LUKS -> deletion = unrecoverable at rest; no shred needed.
 set -euo pipefail
-ID="${1:?usage: close-engagement <client-id>}"; NAME="eng-${ID}"
+ID="${1:?usage: close-engagement <client-id>}"
+[[ "$ID" =~ ^[a-z0-9][a-z0-9-]{0,30}$ ]] \
+  || { echo "ERROR: id must be [a-z0-9][a-z0-9-]{0,30} (lowercase letters, digits, hyphens)"; exit 1; }
+NAME="eng-${ID}"
 
 # Evidence guard: refuse to destroy unexported work.
+# Match BOTH plaintext and age-encrypted exports - export-engagement.sh deletes the
+# plaintext .tar.gz when GOLDEN_AGE_RECIPIENT is set, so a *.tar.gz-only glob would
+# go blind exactly when encryption is on. (Listed explicitly, not *.tar.gz*, so a
+# stray .sha256/.asc/.meta can't satisfy the guard by itself.)
 DEST="${GOLDEN_ARCHIVE:-$HOME/engagements-archive}"
-if ls "$DEST/${ID}-"*.tar.gz >/dev/null 2>&1; then
-  echo "[i] evidence export present: $(ls -1 "$DEST/${ID}-"*.tar.gz | tail -1)"
+shopt -s nullglob
+EXPORTS=( "$DEST/${ID}-"*.tar.gz "$DEST/${ID}-"*.tar.gz.age )
+shopt -u nullglob
+if [ "${#EXPORTS[@]}" -gt 0 ]; then
+  echo "[i] evidence export present: ${EXPORTS[-1]}"
 else
   echo "!! No evidence export found for '$ID' in $DEST"
   echo "   Everything on this clone (CherryTree notes, loot, report) is about to be destroyed"
