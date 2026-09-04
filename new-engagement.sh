@@ -30,6 +30,11 @@ sudo virt-sysprep -d "$NAME" --hostname "$NAME" --operations defaults,-ssh-userd
   --firstboot-command 'nmap --script-updatedb || true'
 
 echo "[*] Starting $NAME"
+# the default NAT network can be down after a host/WSL restart (libvirt's
+# autostart flag isn't always honoured), which makes domain start fail with
+# "network 'default' is not active" - ensure it's up first.
+sudo virsh net-info default 2>/dev/null | grep -qiE '^Active: +yes' \
+  || sudo virsh net-start default 2>/dev/null || true
 sudo virsh start "$NAME"
 IP=""
 for i in $(seq 1 30); do
