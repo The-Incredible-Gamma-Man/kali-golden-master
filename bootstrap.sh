@@ -37,6 +37,10 @@ preflight(){
   # daemon + emulator: absence shows up only as the "libvirt-sock: No such file" error
   systemctl list-unit-files libvirtd.service >/dev/null 2>&1 || pkgs+=(libvirt-daemon-system)
   command -v qemu-system-x86_64 >/dev/null || pkgs+=(qemu-system-x86)
+  # libguestfs (virt-customize) builds an appliance that needs a real kernel image.
+  # WSL2 / containers boot an external kernel and leave /boot empty, so supermin
+  # can't find one - give it a kernel to use (the host keeps booting its own).
+  ls /boot/vmlinuz* >/dev/null 2>&1 || pkgs+=(linux-image-generic)
 
   if [ ${#pkgs[@]} -gt 0 ]; then
     mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | sort -u)
