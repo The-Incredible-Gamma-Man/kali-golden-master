@@ -78,7 +78,22 @@ read -r SHA ARCHIVE < "$HERE/sha.txt"          # "<sha256>  kali-...-qemu-amd64.
 VER=$(sed -E 's/kali-linux-([0-9.]+)-qemu.*/\1/' <<<"$ARCHIVE")
 QCOW="${ARCHIVE%.7z}.qcow2"
 URL="https://cdimage.kali.org/kali-${VER}/${ARCHIVE}"
-WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+# The base archive (~4GB) plus its extracted qcow2 need ~15GB of scratch space.
+# The default /tmp is often a small tmpfs (typical on WSL/systemd hosts), so pick
+# the first of $TMPDIR, /var/tmp, /tmp that actually has room. Override with TMPDIR.
+pick_scratch(){
+  local need_kb=$((15*1024*1024)) d avail
+  for d in "${TMPDIR:-}" /var/tmp /tmp; do
+    [ -n "$d" ] && [ -d "$d" ] && [ -w "$d" ] || continue
+    avail=$(df -Pk "$d" 2>/dev/null | awk 'NR==2{print $4}')
+    [ "${avail:-0}" -ge "$need_kb" ] && { echo "$d"; return 0; }
+  done
+  echo "no scratch dir with ~15GB free (checked ${TMPDIR:+$TMPDIR, }/var/tmp, /tmp)" >&2
+  echo "free up space or point TMPDIR at a roomier filesystem, then re-run" >&2
+  exit 1
+}
+SCRATCH="$(pick_scratch)"    # set -e aborts here if none has room
+WORK="$(mktemp -d -p "$SCRATCH")"; trap 'rm -rf "$WORK"' EXIT
 
 echo "[1/5] fetching Kali ${VER} base image"
 curl -fSL -o "$WORK/$ARCHIVE" "$URL"
