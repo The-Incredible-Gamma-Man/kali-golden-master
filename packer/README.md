@@ -20,8 +20,9 @@ and clone with `goldenctl new <id>`.
 
 ## Requirements
 
-`packer`, `libguestfs-tools` (for `virt-customize`), `qemu-img`, `curl`, `p7zip-full` (`7z`), and KVM
-access (membership in the `kvm`/`libvirt` group, or run with `sudo`).
+Just a Linux host with KVM. `build.sh` installs everything it can on first run and adds you to the
+`kvm` group if needed. The only thing it can't fetch for you is **Packer** itself (it comes from
+HashiCorp, not the distro) — if it's missing, the script prints the exact install commands and exits.
 
 ## Notes
 

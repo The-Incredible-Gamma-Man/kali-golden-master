@@ -18,8 +18,60 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 : "${VM_RAM_MB:=12288}"; : "${VM_VCPUS:=8}"
 SSHOPTS=(-i "$GOLDEN_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
 
-need(){ command -v "$1" >/dev/null || { echo "missing dependency: $1"; exit 1; }; }
-for b in virsh virt-install virt-customize qemu-img curl 7z awk; do need "$b"; done
+# --- preflight: resolve host dependencies and bring libvirt up ----------------
+# A fresh Debian/Ubuntu host is missing more than a few binaries, and installing
+# only the *clients* still leaves virsh/virt-install talking to a libvirt socket
+# that was never created. Resolve everything in one pass: map each required
+# command to its apt package, add the daemon + KVM emulator (which have no handy
+# 'command' to probe), install the lot, then start libvirtd + the default net.
+# Set NO_DEPS=1 to skip auto-install and just be told what's missing.
+declare -A PKG_FOR=(
+  [virsh]=libvirt-clients [virt-install]=virtinst [virt-customize]=libguestfs-tools
+  [qemu-img]=qemu-utils [curl]=curl [7z]=p7zip-full [awk]=gawk
+)
+preflight(){
+  local b pkgs=() missing=()
+  for b in "${!PKG_FOR[@]}"; do
+    command -v "$b" >/dev/null || { missing+=("$b"); pkgs+=("${PKG_FOR[$b]}"); }
+  done
+  # daemon + emulator: absence shows up only as the "libvirt-sock: No such file" error
+  systemctl list-unit-files libvirtd.service >/dev/null 2>&1 || pkgs+=(libvirt-daemon-system)
+  command -v qemu-system-x86_64 >/dev/null || pkgs+=(qemu-system-x86)
+
+  if [ ${#pkgs[@]} -gt 0 ]; then
+    mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | sort -u)
+    if [ "${NO_DEPS:-0}" = 1 ] || ! command -v apt-get >/dev/null; then
+      echo "Missing host dependencies. Install these and re-run:"; printf '  %s\n' "${pkgs[@]}"
+      command -v apt-get >/dev/null && echo "  sudo apt-get install -y ${pkgs[*]}"
+      exit 1
+    fi
+    echo "[preflight] installing host dependencies: ${pkgs[*]}"
+    sudo apt-get update -qq
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
+  fi
+
+  # start the daemon (monolithic or modular) and wait for it to actually answer
+  sudo systemctl enable --now libvirtd 2>/dev/null \
+    || sudo systemctl enable --now virtqemud virtnetworkd 2>/dev/null || true
+  local up=0; for _ in $(seq 1 10); do
+    sudo virsh -c qemu:///system uri >/dev/null 2>&1 && { up=1; break; }; sleep 1
+  done
+  [ "$up" = 1 ] || { echo "libvirt daemon did not come up - check 'systemctl status libvirtd'"; exit 1; }
+
+  # ensure the default NAT network exists, runs, and autostarts (VM needs it)
+  sudo virsh net-info default >/dev/null 2>&1 \
+    || sudo virsh net-define /usr/share/libvirt/networks/default.xml 2>/dev/null || true
+  sudo virsh net-start default 2>/dev/null || true
+  sudo virsh net-autostart default 2>/dev/null || true
+
+  # let the invoking user drive virsh without sudo next time (takes effect on relogin)
+  local u="${SUDO_USER:-$USER}" g
+  for g in libvirt kvm; do
+    getent group "$g" >/dev/null 2>&1 && ! id -nG "$u" 2>/dev/null | grep -qw "$g" \
+      && sudo usermod -aG "$g" "$u" 2>/dev/null || true
+  done
+}
+preflight
 [ -f "$HERE/sha.txt" ] || { echo "sha.txt not found next to bootstrap.sh"; exit 1; }
 
 read -r SHA ARCHIVE < "$HERE/sha.txt"          # "<sha256>  kali-...-qemu-amd64.7z"

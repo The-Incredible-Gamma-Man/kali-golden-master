@@ -25,15 +25,36 @@ project deliberately takes the **VM road** and leans into the parts those tools 
 
 ## Quick start
 
-```bash
-# one-time, online: build the master from the pinned Kali base image
-./bootstrap.sh
+You need a Linux PC (Ubuntu, Debian or Kali) that can run virtual machines, and an
+internet connection for the first step. That's it — the build script sets up
+everything else for you the first time you run it.
 
-# per engagement (fully offline from here on):
-./goldenctl new acme-corp --vpn client.ovpn --resources ./my-resources
-./goldenctl ssh acme-corp          # work happens only inside the clone
-./goldenctl close acme-corp        # destroy VM + storage at close
+> **On Windows?** Install WSL2 with Ubuntu — open PowerShell and run `wsl --install`,
+> then reboot. Launch the **Ubuntu** app from the Start menu and run the same steps
+> below inside it; everything works unmodified. (Needs Windows 11, which gives WSL2
+> the virtualisation support this build relies on.)
+
+**1. Build the master (once, online):**
+
+```bash
+git clone https://github.com/The-Incredible-Gamma-Man/kali-golden-master.git
+cd kali-golden-master
+./bootstrap.sh
 ```
+
+It'll ask for your password (to install what it needs), then do the rest on its own.
+Grab a coffee — it takes a while.
+
+**2. Use it (offline from here on):**
+
+```bash
+./goldenctl new acme-corp          # spin up a fresh VM for a job
+./goldenctl ssh acme-corp          # work happens only inside it
+./goldenctl close acme-corp        # wipe the VM when the job's done
+```
+
+Add `--vpn client.ovpn` to drop in a VPN config, or `--resources ./my-resources`
+to load your own scripts and wordlists into the VM.
 
 `goldenctl` is the single entry point:
 
