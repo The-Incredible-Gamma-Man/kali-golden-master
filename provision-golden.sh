@@ -13,6 +13,44 @@ sec(){ echo; echo "########## $* ##########"; }
 try_apt(){ for p in "$@"; do apt-get install -y -q "$p" </dev/null || echo "APT_FAIL $p" >> "$FAILED"; done; }
 PGX(){ PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx "$@"; }
 
+# --- PINNED third-party artifacts (reproducibility + supply chain) ------------
+# Exact versions + SHA-256, verified before use, so a moved/tampered/updated
+# upstream release fails the build LOUDLY instead of baking an unverified binary
+# into a golden image that runs on client networks. Update these deliberately;
+# update-golden.sh is the separate "pull latest" path. (Regenerate with the repo's
+# gather-pins helper.) Git repos are pinned to exact commits further below.
+declare -A P_URL P_SHA
+P_URL[kerbrute]="https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64"
+P_SHA[kerbrute]="710a9d2653c8bd3689e451778dab9daec0de4c4c75f900788ccf23ef254b122a"
+P_URL[linpeas.sh]="https://github.com/peass-ng/PEASS-ng/releases/download/20260901-a029e205/linpeas.sh"
+P_SHA[linpeas.sh]="8f5f81b0f1b6293f9da63817b55872263d60bf4a0dff65ff2911badf2d53c88f"
+P_URL[winPEASx64.exe]="https://github.com/peass-ng/PEASS-ng/releases/download/20260901-a029e205/winPEASx64.exe"
+P_SHA[winPEASx64.exe]="369352c50dca44e661e620d3fe1775671d09ce3e6ad761aa05f018e5a4c7bbc8"
+P_URL[winPEASany.exe]="https://github.com/peass-ng/PEASS-ng/releases/download/20260901-a029e205/winPEASany.exe"
+P_SHA[winPEASany.exe]="ba09852ba2051d6b6041a87fe8f29df5de5aaffe8683c854f2966e3a7221c210"
+P_URL[pspy64]="https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64"
+P_SHA[pspy64]="c93f29a5cc1347bdb90e14a12424e6469c8cfea9a20b800bc249755f0043a3bb"
+# dalfox ships a tarball; the single binary is extracted after verification.
+P_URL[dalfox.tgz]="https://github.com/hahwul/dalfox/releases/download/v3.2.2/dalfox-v3.2.2-linux-x86_64.tar.gz"
+P_SHA[dalfox.tgz]="7f9621090ab2c5ef48dbab3e2d7a9de81a54390efee2aaa0b431130df629715e"
+
+# fetch_pinned <name> <dest> [x] : download to temp, verify SHA-256, then install.
+fetch_pinned(){
+  local n="$1" d="$2" t; t=$(mktemp)
+  if ! curl -fsSL -o "$t" "${P_URL[$n]}"; then echo "DL_FAIL $n">>"$FAILED"; rm -f "$t"; return 0; fi
+  if ! echo "${P_SHA[$n]}  $t" | sha256sum -c - >/dev/null 2>&1; then
+    echo "HASH_FAIL $n (want ${P_SHA[$n]}, got $(sha256sum "$t"|awk '{print $1}'))">>"$FAILED"; rm -f "$t"; return 0
+  fi
+  mv "$t" "$d"; [ "${3:-}" = x ] && chmod +x "$d"
+}
+# pin_git <url> <sha> <dir> : shallow-fetch and check out an exact commit.
+pin_git(){
+  [ -d "$3/.git" ] && return 0
+  mkdir -p "$3"; git -C "$3" init -q; git -C "$3" remote add origin "$1"
+  if git -C "$3" fetch -q --depth 1 origin "$2" && git -C "$3" checkout -q FETCH_HEAD; then :; \
+  else echo "GIT_FAIL $1@$2">>"$FAILED"; fi
+}
+
 sec "APT UPDATE + FULL UPGRADE"; apt-get update -q; apt-get full-upgrade -y -q </dev/null || echo "APT_FAIL upgrade">>"$FAILED"
 
 sec "BUILD DEPS (for pipx source builds e.g. lxml on py3.14)"
@@ -44,39 +82,30 @@ for p in certipy-ad coercer pywerview man-spider bloodhound-ce autorecon; do PGX
 PGX install --python python3 "git+https://github.com/login-securite/DonPAPI.git" || echo "PIPX_FAIL donpapi">>"$FAILED"
 
 sec "NSE: vulners + vulscan"
-[ -d /usr/share/nmap/scripts/nmap-vulners ] || git clone --depth 1 https://github.com/vulnersCom/nmap-vulners /usr/share/nmap/scripts/nmap-vulners || echo "GIT_FAIL vulners">>"$FAILED"
-[ -d /usr/share/nmap/scripts/vulscan ]      || git clone --depth 1 https://github.com/scipag/vulscan       /usr/share/nmap/scripts/vulscan      || echo "GIT_FAIL vulscan">>"$FAILED"
+pin_git https://github.com/vulnersCom/nmap-vulners 7607b14327b41c74d5d869899ff9a4218a441a8d /usr/share/nmap/scripts/nmap-vulners
+pin_git https://github.com/scipag/vulscan          bd642ed1bc9d96795a91cdf1acd8c93ceef2d07e /usr/share/nmap/scripts/vulscan
 nmap --script-updatedb || echo "NSE updatedb failed">>"$FAILED"
 
 sec "EXPLOITDB SYNC + ROCKYOU"
 searchsploit -u || echo "searchsploit -u failed">>"$FAILED"
 [ -f /usr/share/wordlists/rockyou.txt.gz ] && gzip -df /usr/share/wordlists/rockyou.txt.gz || true
 
-sec "OFFLINE /opt TOOLING"
+sec "OFFLINE /opt TOOLING (pinned versions, SHA-256 verified)"
 mkdir -p /opt/tools/bin /opt/peass /opt/pspy
-# fetch a binary with hard HTTP errors (-f, so a 404/HTML body isn't chmod'd as a
-# tool) and log misses to $FAILED like the apt/pipx steps do. 3rd arg 'x' => +x.
-dlbin(){
-  if curl -fsSL -o "$1" "$2"; then [ "${3:-}" = x ] && chmod +x "$1"; return 0; fi
-  echo "DL_FAIL $(basename "$1")">>"$FAILED"; rm -f "$1"; return 0
-}
-dlbin /opt/tools/bin/kerbrute   https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64 x
-dlbin /opt/peass/linpeas.sh     https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh x
-dlbin /opt/peass/winPEASx64.exe https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASx64.exe
-dlbin /opt/peass/winPEASany.exe https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASany.exe
-dlbin /opt/pspy/pspy64          https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64 x
-# dalfox: match the REAL asset name (dalfox_Linux_x86_64.tar.gz - capital L, underscore)
-# and extract in a private mktemp dir so a stray /tmp 'dalfox' can't be picked up.
-DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest | grep -oiE 'https://[^"]*dalfox_[Ll]inux_x86_64\.tar\.gz' | head -1 || true)
-if [ -n "$DURL" ]; then
-  dtmp=$(mktemp -d)
-  if wget -q --tries=4 -O "$dtmp/dalfox.tgz" "$DURL" && tar -xzf "$dtmp/dalfox.tgz" -C "$dtmp"; then
-    df=$(find "$dtmp" -type f -name dalfox | head -1 || true)
-    { [ -n "$df" ] && cp "$df" /opt/tools/bin/dalfox && chmod +x /opt/tools/bin/dalfox; } || echo "DL_FAIL dalfox">>"$FAILED"
-  else echo "DL_FAIL dalfox">>"$FAILED"; fi
-  rm -rf "$dtmp"
-else echo "DL_FAIL dalfox">>"$FAILED"; fi
-[ -d /opt/PayloadsAllTheThings ] || git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt/PayloadsAllTheThings || echo "GIT_FAIL PayloadsAllTheThings">>"$FAILED"
+fetch_pinned kerbrute       /opt/tools/bin/kerbrute   x
+fetch_pinned linpeas.sh     /opt/peass/linpeas.sh     x
+fetch_pinned winPEASx64.exe /opt/peass/winPEASx64.exe
+fetch_pinned winPEASany.exe /opt/peass/winPEASany.exe
+fetch_pinned pspy64         /opt/pspy/pspy64          x
+# dalfox: verify the pinned tarball, then extract its single binary from a mktemp dir
+dtmp=$(mktemp -d)
+fetch_pinned dalfox.tgz "$dtmp/dalfox.tgz"
+if [ -s "$dtmp/dalfox.tgz" ] && tar -xzf "$dtmp/dalfox.tgz" -C "$dtmp" 2>/dev/null; then
+  df=$(find "$dtmp" -type f -name dalfox | head -1 || true)
+  { [ -n "$df" ] && cp "$df" /opt/tools/bin/dalfox && chmod +x /opt/tools/bin/dalfox; } || echo "DL_FAIL dalfox (extract)">>"$FAILED"
+fi
+rm -rf "$dtmp"
+pin_git https://github.com/swisskyrepo/PayloadsAllTheThings 3ac27901c711bdf3f5b65a7b1d1820a1f65bd09a /opt/PayloadsAllTheThings
 echo 'export PATH=$PATH:/opt/tools/bin' > /etc/profile.d/golden-tools.sh
 runuser -l kali -c 'nuclei -update-templates' || echo "nuclei templates(kali) failed">>"$FAILED"
 

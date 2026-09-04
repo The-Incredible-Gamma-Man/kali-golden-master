@@ -18,6 +18,13 @@ declare -A XPI=(
   ["wappalyzer@crunchlabz.com"]="https://addons.mozilla.org/firefox/downloads/latest/wappalyzer/latest.xpi"
   ["foxyproxy@eric.h.jung"]="https://addons.mozilla.org/firefox/downloads/latest/foxyproxy-standard/latest.xpi"
 )
+# Pinned SHA-256 per add-on. AMO's 'latest' URL has no version lock, so we pin by
+# hash: if Mozilla ships a new build the hash won't match and the build fails loudly
+# (prompting a deliberate re-pin) instead of silently baking in a changed extension.
+declare -A XPI_SHA=(
+  ["wappalyzer@crunchlabz.com"]="3a369e5580a1b4864001c021e0f5b524a7f08968b438fb7d5d7cbe887e8cee89"
+  ["foxyproxy@eric.h.jung"]="3ab91ca2a6cac925bc7097c46948573fefe4e3fddcbc27dda755401419c4e5d7"
+)
 # download to a .part, verify it's a real XPI (a zip) before moving into place, and
 # treat any failure as FATAL - a golden master must not ship a policy that references
 # add-ons that were never fetched (or an HTML error body cached as an .xpi).
@@ -26,10 +33,12 @@ for id in "${!XPI[@]}"; do
   f="$ADDONS/$id.xpi"
   [ -s "$f" ] && continue
   tmp="$f.part"
-  if curl -fsSL -o "$tmp" "${XPI[$id]}" && unzip -tqq "$tmp" >/dev/null 2>&1; then
+  if curl -fsSL -o "$tmp" "${XPI[$id]}" \
+     && unzip -tqq "$tmp" >/dev/null 2>&1 \
+     && echo "${XPI_SHA[$id]}  $tmp" | sha256sum -c - >/dev/null 2>&1; then
     mv -f "$tmp" "$f"
   else
-    rm -f "$tmp"; echo "  ERROR: could not fetch/validate add-on $id"; FAIL=1
+    rm -f "$tmp"; echo "  ERROR: fetch/validate/verify failed for add-on $id (download error or SHA-256 mismatch - re-pin if the add-on was updated)"; FAIL=1
   fi
 done
 [ "$FAIL" = 0 ] || { echo "[!] add-on fetch failed - refusing to ship a half-configured policy"; exit 1; }

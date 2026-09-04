@@ -85,7 +85,7 @@ dl "$PEASS/winPEASany.exe" https://github.com/peass-ng/PEASS-ng/releases/latest/
 dl "$DEPLOY/pspy64"       https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64
 # match the real asset name (dalfox_Linux_x86_64.tar.gz) and extract in a private
 # mktemp dir so a predictable /tmp path / stray 'dalfox' can't be picked up
-DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest 2>/dev/null | grep -oiE 'https://[^"]*dalfox_[Ll]inux_x86_64\.tar\.gz' | head -1 || true)
+DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest 2>/dev/null | grep -oE 'https://[^"]*-linux-x86_64\.tar\.gz' | head -1 || true)
 if [ -n "$DURL" ]; then
   dtmp=$(mktemp -d)
   if wget -q --tries=3 -O "$dtmp/dalfox.tgz" "$DURL" && tar -xzf "$dtmp/dalfox.tgz" -C "$dtmp" 2>/dev/null; then

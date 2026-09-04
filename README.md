@@ -22,8 +22,10 @@ project deliberately takes the **VM road** and leans into the parts those tools 
   payload kit are baked in, so once the master is built an engagement clone **runs with no
   connectivity**. (The *build* itself and `goldenctl update` still need the internet; fully offline
   build/update mirrors are on the [roadmap](#roadmap), not shipped yet.)
-- **Reproducible-as-code** — the image is a build artifact; this repo is the source of truth, so a
-  tagged version answers "what tools were present during testing" from a commit.
+- **Reproducible-as-code** — the image is a build artifact; this repo is the source of truth.
+  Third-party tools are pinned to exact versions/commits and **SHA-256-verified at build time**
+  (`gather-pins.sh` re-resolves them), so a tagged commit answers "what tools were present during
+  testing" — and a tampered or moved upstream release fails the build instead of shipping silently.
 
 ## Quick start
 
