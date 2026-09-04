@@ -8,7 +8,7 @@ set -euo pipefail
 ID="${1:?usage: new-engagement <client-id>}"
 MASTER=kali-golden; POOL=/var/lib/libvirt/images/engagements
 NAME="eng-${ID}"; DISK="${POOL}/${NAME}.qcow2"
-KEY=/opt/golden-build/build_key
+KEY="${GOLDEN_KEY:-$HOME/.ssh/kali-golden_build_key}"
 OPTS="-i $KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 [ -e "$DISK" ] && { echo "ERROR: clone $NAME already exists"; exit 1; }
@@ -16,6 +16,9 @@ sudo virsh domstate "$MASTER" 2>/dev/null | grep -q 'shut off' \
   || { echo "ERROR: shut off the master first:  sudo virsh shutdown $MASTER"; exit 1; }
 
 echo "[*] Cloning $MASTER -> $NAME"
+# create the engagements pool if it doesn't exist yet (mirrors bootstrap.sh's
+# mkdir -p of the master pool) so the very first clone doesn't fail on a fresh host
+sudo mkdir -p "$POOL"
 sudo virt-clone --original "$MASTER" --name "$NAME" --file "$DISK"
 
 echo "[*] Generalising (fresh identity; keep authorized_keys; reassert gateway DNS)"
