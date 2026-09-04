@@ -36,6 +36,9 @@ try_apt nuclei httpx-toolkit subfinder naabu dnsx katana gowitness eyewitness am
 sec "NOTES / SCREENSHOTS / VPN"
 try_apt cherrytree flameshot ksnip openvpn openvpn-systemd-resolved
 
+sec "SECURITY BASELINE (ufw is enabled + configured later by harden.sh)"
+try_apt ufw
+
 sec "PIPX GLOBAL TOOLS (nxc supplied by apt netexec)"
 for p in certipy-ad coercer pywerview man-spider bloodhound-ce autorecon; do PGX install "$p" || echo "PIPX_FAIL $p">>"$FAILED"; done
 PGX install --python /usr/bin/python3.13 "git+https://github.com/login-securite/DonPAPI.git" || echo "PIPX_FAIL donpapi">>"$FAILED"

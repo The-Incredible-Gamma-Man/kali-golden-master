@@ -14,14 +14,22 @@ GW="${GATEWAY_DNS:-192.168.122.1}"
 NEWPW=""; if [ ! -t 0 ]; then IFS= read -r NEWPW || true; fi
 
 echo "[*] UFW: default deny in / allow out / SSH / drop inbound ping"
-apt-get install -y -q ufw </dev/null >/dev/null 2>&1 || true
-ufw --force reset >/dev/null 2>&1 || true
-ufw default deny incoming >/dev/null
-ufw default allow outgoing >/dev/null
-ufw allow 22/tcp >/dev/null
-sed -i 's/^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT/-A ufw-before-input -p icmp --icmp-type echo-request -j DROP/' /etc/ufw/before.rules 2>/dev/null || true
-sed -i 's/^-A ufw6-before-input -p ipv6-icmp --icmp-type echo-request -j ACCEPT/-A ufw6-before-input -p ipv6-icmp --icmp-type echo-request -j DROP/' /etc/ufw/before6.rules 2>/dev/null || true
-ufw --force enable >/dev/null; systemctl enable ufw >/dev/null 2>&1 || true
+# ufw is normally baked in by provision-golden.sh; try once more here in case it
+# isn't, but never pretend the firewall is up if the binary still isn't present.
+command -v ufw >/dev/null 2>&1 || apt-get install -y -q ufw </dev/null >/dev/null 2>&1 || true
+if command -v ufw >/dev/null 2>&1; then
+  ufw --force reset >/dev/null 2>&1 || true
+  ufw default deny incoming >/dev/null
+  ufw default allow outgoing >/dev/null
+  ufw allow 22/tcp >/dev/null
+  sed -i 's/^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT/-A ufw-before-input -p icmp --icmp-type echo-request -j DROP/' /etc/ufw/before.rules 2>/dev/null || true
+  sed -i 's/^-A ufw6-before-input -p ipv6-icmp --icmp-type echo-request -j ACCEPT/-A ufw6-before-input -p ipv6-icmp --icmp-type echo-request -j DROP/' /etc/ufw/before6.rules 2>/dev/null || true
+  ufw --force enable >/dev/null; systemctl enable ufw >/dev/null 2>&1 || true
+  UFW_OK=1
+else
+  echo "[!] ufw is NOT installed - inbound firewall NOT applied. Install ufw and re-run harden.sh."
+  UFW_OK=0
+fi
 
 echo "[*] quiet services (no mDNS/LLMNR/Bluetooth beaconing on a client LAN)"
 for s in bluetooth avahi-daemon avahi-daemon.socket cups cups-browsed cups.socket ModemManager saned; do
@@ -51,8 +59,9 @@ fi
 echo "[*] remove the build-time passwordless sudo (default behaviour restored)"
 rm -f /etc/sudoers.d/99-build
 
-cat <<'EOF'
-[+] Hardening applied: UFW up, root locked, key-only SSH, gateway-only DNS, mDNS/LLMNR/BT off.
+if [ "${UFW_OK:-0}" = 1 ]; then FW="UFW up (no ping)"; else FW="UFW MISSING (no inbound firewall!)"; fi
+cat <<EOF
+[+] Hardening applied: $FW, root locked, key-only SSH, gateway-only DNS, mDNS/LLMNR/BT off.
     SSH is key-only, so remote access does NOT depend on a password (it is only for console/sudo).
     DNS / SSH / service settings take full effect on the next boot (i.e. on every clone).
 EOF
