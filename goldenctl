@@ -12,7 +12,8 @@
 #   goldenctl status                        show state + IPs
 #   goldenctl new <id> [--vpn f.ovpn] [--resources DIR]
 #                                           clone a fresh, isolated engagement VM
-#   goldenctl ssh <id>                      shell into an engagement clone
+#   goldenctl ssh [-X|-Y] <id> [cmd...]     shell into a clone; -X/-Y forwards X11; optional remote cmd
+#   goldenctl rdp <id> <rdp-host> [args...] xfreerdp from the clone to <rdp-host>, window forwarded to your X (WSLg)
 #   goldenctl update                        refresh the master's toolset (update-golden)
 #   goldenctl export <id> [dir]             archive an engagement's work (do this BEFORE close)
 #   goldenctl close <id>                    destroy an engagement (VM + storage)
@@ -29,7 +30,7 @@ have(){ command -v "$1" >/dev/null 2>&1; }
 clone_ip(){ $VIRSH -q domifaddr "$1" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1 || true; }  # '|| true': head can SIGPIPE upstream under pipefail; this runs in $(...) under set -e
 wait_ip(){ local n="$1" ip=""; for _ in $(seq 1 30); do ip=$(clone_ip "$n"); [ -n "$ip" ] && { echo "$ip"; return; }; sleep 4; done; }
 
-usage(){ sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
+usage(){ sed -n '2,/^set /p' "$0" | sed '/^set /d; s/^# \{0,1\}//'; }  # header comments, up to (not incl.) the first 'set' line
 
 cmd_build(){ exec bash "$GOLDEN_DIR/bootstrap.sh" "$@"; }
 
@@ -78,7 +79,25 @@ cmd_new(){
   fi
 }
 
-cmd_ssh(){ local id="${1:?usage: goldenctl ssh <id>}"; local ip; ip=$(clone_ip "eng-$id"); [ -n "$ip" ] || die "eng-$id has no address (running?)"; exec ssh "${SSHOPTS[@]}" "kali@$ip"; }
+cmd_ssh(){
+  local xarg=()
+  case "${1:-}" in -X|-Y) xarg=("$1"); shift;; esac   # optional X11 forwarding
+  local id="${1:?usage: goldenctl ssh [-X|-Y] <id> [cmd...]}"; shift || true
+  local ip; ip=$(clone_ip "eng-$id"); [ -n "$ip" ] || die "eng-$id has no address (running?)"
+  # no extra args -> interactive shell; trailing args -> run that command remotely
+  exec ssh "${xarg[@]}" "${SSHOPTS[@]}" "kali@$ip" "$@"
+}
+
+# RDP from inside the clone (so traffic stays on the clone's VPN) with the window
+# forwarded back to the caller's X server (WSLg on Windows/WSL2, or any local X).
+# /cert:ignore is always set (you can't validate a target's self-signed RDP cert).
+cmd_rdp(){
+  local id="${1:?usage: goldenctl rdp <id> <rdp-host> [xfreerdp args...]}"; shift
+  local host="${1:?usage: goldenctl rdp <id> <rdp-host> [xfreerdp args...]}"; shift || true
+  local ip; ip=$(clone_ip "eng-$id"); [ -n "$ip" ] || die "eng-$id has no address (running?)"
+  [ -n "${DISPLAY:-}" ] || echo "goldenctl: warning - no local \$DISPLAY; if no window appears, VNC to the clone (localhost:5900) and run xfreerdp there." >&2
+  exec ssh -X "${SSHOPTS[@]}" "kali@$ip" xfreerdp "/v:$host" /cert:ignore /dynamic-resolution +clipboard "$@"
+}
 
 cmd_export(){ [ -n "${1:-}" ] || die "usage: goldenctl export <id> [dest-dir]"; exec bash "$GOLDEN_DIR/export-engagement.sh" "$@"; }
 
@@ -98,6 +117,7 @@ case "$sub" in
   status) cmd_status "$@";;
   new)   cmd_new "$@";;
   ssh)   cmd_ssh "$@";;
+  rdp)   cmd_rdp "$@";;
   update) cmd_update "$@";;
   export) cmd_export "$@";;
   close) cmd_close "$@";;
