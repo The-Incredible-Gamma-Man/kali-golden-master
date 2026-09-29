@@ -20,11 +20,13 @@ during testing" at a glance.
     runs `sliver-server` per engagement, which then generates its own certs and config on first run.
 - **Offline Sliver armory** — `provision-golden.sh` (and `update-golden.sh` on refresh) best-effort
   caches the armory **extensions/aliases** (BOFs, .NET post-ex, situational-awareness) into
-  `/home/kali/.sliver-client`, so a locked-down engagement box needs no internet — same rationale as
-  the offline nuclei-templates / PayloadsAllTheThings staging. Failures are logged, never fatal.
+  `/home/kali/.sliver-client/{aliases,extensions}`, so a locked-down engagement box needs no
+  internet — same rationale as the offline nuclei-templates / PayloadsAllTheThings staging. `armory`
+  is a Sliver *console* command (no `sliver-client armory` subcommand exists), so it's driven
+  headlessly through `sliver-server --rc` as the `kali` user. Failures are logged, never fatal.
 - **Sliver loot in evidence exports** — `export-engagement.sh` now also captures the Sliver server
   state (`~/.sliver`: loot store, creds/host DB, session + audit logs, certs; the unpacked Go
-  toolchain is excluded) on both the SSH and offline (`virt-copy-out`) paths, folded into the same
+  toolchains (Go + Zig) are excluded) on both the SSH and offline (`virt-copy-out`) paths, folded into the same
   hashed/signed archive and recorded as `sliver_state:` in the `.meta.txt`. Sliver is optional, so
   its absence never marks an archive incomplete.
 

@@ -88,9 +88,10 @@ sudo mkdir -p "$SLIVER"
 dl "$SLIVER/sliver-server" https://github.com/BishopFox/sliver/releases/latest/download/sliver-server_linux-amd64
 dl "$SLIVER/sliver-client" https://github.com/BishopFox/sliver/releases/latest/download/sliver-client_linux-amd64
 sudo ln -sf "$SLIVER/sliver-server" "$BIN/sliver-server"; sudo ln -sf "$SLIVER/sliver-client" "$BIN/sliver-client"
-# refresh the offline Sliver armory cache (best-effort; keeps kali's extensions/aliases current)
-if command -v sliver-client >/dev/null && id kali >/dev/null 2>&1; then
-  sudo runuser -l kali -c 'timeout 900 sliver-client armory install all' </dev/null >/dev/null 2>&1 \
+# refresh the offline Sliver armory cache (best-effort; keeps kali's extensions/aliases
+# current). armory is a server-console command, driven headlessly via --rc as kali.
+if [ -x "$SLIVER/sliver-server" ] && id kali >/dev/null 2>&1; then
+  sudo runuser -l kali -c "printf 'armory install all\nexit\n' > ~/.armory.rc && timeout 1800 $SLIVER/sliver-server --rc ~/.armory.rc; rm -f ~/.armory.rc" </dev/null >/dev/null 2>&1 \
     && ok "sliver armory" || warn "sliver armory refresh (best-effort) failed"
 fi
 # match the real asset name (dalfox_Linux_x86_64.tar.gz) and extract in a private

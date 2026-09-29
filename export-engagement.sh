@@ -54,15 +54,15 @@ if [ -n "$ip" ]; then
   done <<< "$notes_list"
   # Sliver C2 server state: loot store, creds/host DB, session + audit logs, certs.
   # Optional - not every engagement uses Sliver, so its ABSENCE is fine and must not
-  # flip COLLECT_OK. Exclude the bundled Go toolchain / traffic-encoders that
-  # sliver-server unpacks on first run (hundreds of MB, not evidence). Build the
-  # filtered tar on the clone, pull it, and unpack so each file lands in the manifest.
+  # flip COLLECT_OK. Exclude the bundled Go + Zig toolchains / traffic-encoders that
+  # sliver-server unpacks on first run (~630 MB, not evidence). Build the filtered
+  # tar on the clone, pull it, and unpack so each file lands in the manifest.
   set +e
   sliver_have=$(ssh "${SSHOPTS[@]}" "kali@$ip" '[ -d "$HOME/.sliver" ] && echo yes || echo no')
   set -e
   if [ "$sliver_have" = yes ]; then
     mkdir -p "$STAGE/sliver-server-state"
-    if ssh "${SSHOPTS[@]}" "kali@$ip" 'tar -C "$HOME" --exclude=.sliver/go --exclude=.sliver/traffic-encoders -czf /tmp/.sliver-evidence.tgz .sliver 2>/dev/null' \
+    if ssh "${SSHOPTS[@]}" "kali@$ip" 'tar -C "$HOME" --exclude=.sliver/go --exclude=.sliver/zig --exclude=.sliver/traffic-encoders -czf /tmp/.sliver-evidence.tgz .sliver 2>/dev/null' \
        && scp "${SSHOPTS[@]}" "kali@$ip:/tmp/.sliver-evidence.tgz" "$STAGE/.sv.tgz"; then
       tar -C "$STAGE/sliver-server-state" -xzf "$STAGE/.sv.tgz" && rm -f "$STAGE/.sv.tgz"
       ssh "${SSHOPTS[@]}" "kali@$ip" 'rm -f /tmp/.sliver-evidence.tgz' 2>/dev/null || true
@@ -82,10 +82,10 @@ else
     COLLECT_OK=0
   fi
   # Sliver C2 server state (optional, see SSH branch). Copy it out, then prune the
-  # unpacked Go toolchain / traffic-encoders. Absence is fine - do not flip COLLECT_OK.
+  # unpacked Go + Zig toolchains / traffic-encoders. Absence is fine - no COLLECT_OK flip.
   mkdir -p "$STAGE/sliver-server-state"
   if sudo virt-copy-out -a "$disk" "/home/kali/.sliver" "$STAGE/sliver-server-state/" 2>/dev/null; then
-    sudo rm -rf "$STAGE/sliver-server-state/.sliver/go" "$STAGE/sliver-server-state/.sliver/traffic-encoders" 2>/dev/null || true
+    sudo rm -rf "$STAGE/sliver-server-state/.sliver/go" "$STAGE/sliver-server-state/.sliver/zig" "$STAGE/sliver-server-state/.sliver/traffic-encoders" 2>/dev/null || true
     sudo chown -R "$(id -u):$(id -g)" "$STAGE/sliver-server-state" 2>/dev/null || true
     echo "  [*] captured Sliver server state (offline: loot/creds/logs/certs)"
   else

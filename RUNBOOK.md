@@ -52,7 +52,7 @@ close guard enforces it. Archives land in `~/engagements-archive/` (override wit
 On an encrypted host, deletion of the clone leaves nothing recoverable at rest.
 
 **Sliver loot:** `export-engagement.sh` also captures the Sliver server state (`~/.sliver`: loot
-store, creds/host DB, session + audit logs, certs — minus the bundled Go toolchain), recorded as
+store, creds/host DB, session + audit logs, certs — minus the bundled Go/Zig toolchains), recorded as
 `sliver_state: captured` in the archive's `.meta.txt`. So findings are retained, run the Sliver
 server as the `kali` user and keep looted files in Sliver's store (`loot add …` / `download`
 follow-ups) or under `~/engagements/<id>/loot`. Sliver state is reset on the next clone, so nothing

@@ -122,18 +122,26 @@ fetch_pinned sliver-client /opt/sliver/sliver-client x
 [ -x /opt/sliver/sliver-server ] && ln -sf /opt/sliver/sliver-server /opt/tools/bin/sliver-server
 [ -x /opt/sliver/sliver-client ] && ln -sf /opt/sliver/sliver-client /opt/tools/bin/sliver-client
 # Sliver armory: offline-cache the generic extensions/aliases (BOFs, .NET post-ex,
-# situational-awareness) into the kali user's client dir, mirroring the offline
-# nuclei-templates / PayloadsAllTheThings staging so a locked-down engagement box
-# needs no internet. This is NON-identifying tooling; the per-operator *configs* in
-# the same dir are wiped at clone time (see new-engagement.sh) while these are kept.
-# Network-dependent and driven through the client, so it's best-effort: a failure is
-# logged, never fatal, and the operator can re-run `armory install all` on the clone.
-if [ -x /opt/sliver/sliver-client ]; then
-  runuser -l kali -c 'timeout 900 sliver-client armory install all' </dev/null >/dev/null 2>&1 || true
+# situational-awareness) into the kali user's client dir (~/.sliver-client/{aliases,
+# extensions}), mirroring the offline nuclei-templates / PayloadsAllTheThings staging
+# so a locked-down engagement box needs no internet. This is NON-identifying tooling;
+# the per-operator *configs* in the same dir are wiped at clone time (see
+# new-engagement.sh) while these are kept.
+#
+# `armory` only exists inside the Sliver *console* - there is no `sliver-client
+# armory` subcommand, and the client console won't start without an operator config -
+# so it's driven headlessly through the SERVER via an --rc script, run as kali (packages
+# land in that user's home; sliver-server resolves the home from /etc/passwd, not $HOME).
+# Starting the server console also creates /home/kali/.sliver (CA + unpacked toolchain);
+# clean-master.sh and the per-clone wipe remove it, so only the armory cache persists.
+# Network-dependent, so best-effort: a failure is logged, never fatal, and the operator
+# can re-run `armory install all` in sliver-server on the clone.
+if [ -x /opt/sliver/sliver-server ]; then
+  runuser -l kali -c 'printf "armory install all\nexit\n" > ~/.armory.rc && timeout 1800 /opt/sliver/sliver-server --rc ~/.armory.rc; rm -f ~/.armory.rc' </dev/null >/dev/null 2>&1 || true
   if runuser -l kali -c 'ls ~/.sliver-client/extensions ~/.sliver-client/aliases 2>/dev/null | grep -q .'; then
     echo "sliver armory staged into /home/kali/.sliver-client (extensions + aliases)"
   else
-    echo "SLIVER_ARMORY empty - install did not populate; run 'armory install all' on the clone" >>"$FAILED"
+    echo "SLIVER_ARMORY empty - install did not populate; run 'armory install all' in sliver-server on the clone" >>"$FAILED"
   fi
 fi
 pin_git https://github.com/swisskyrepo/PayloadsAllTheThings 3ac27901c711bdf3f5b65a7b1d1820a1f65bd09a /opt/PayloadsAllTheThings

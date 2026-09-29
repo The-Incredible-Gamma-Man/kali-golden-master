@@ -23,6 +23,12 @@ echo "== pspy =="; curl -fsSL -o /opt/pspy/pspy64 https://github.com/DominicBreu
 echo "== sliver (C2) =="; mkdir -p /opt/sliver
 curl -fsSL -o /opt/sliver/sliver-server https://github.com/BishopFox/sliver/releases/latest/download/sliver-server_linux-amd64 && chmod +x /opt/sliver/sliver-server && ln -sf /opt/sliver/sliver-server /opt/tools/bin/sliver-server || echo "WARN: sliver-server fetch failed"
 curl -fsSL -o /opt/sliver/sliver-client https://github.com/BishopFox/sliver/releases/latest/download/sliver-client_linux-amd64 && chmod +x /opt/sliver/sliver-client && ln -sf /opt/sliver/sliver-client /opt/tools/bin/sliver-client || echo "WARN: sliver-client fetch failed"
+# armory lives only in the server console; drive it headlessly via --rc as kali
+# (packages land in /home/kali/.sliver-client/{aliases,extensions}).
+echo "== sliver armory =="; if [ -x /opt/sliver/sliver-server ] && id kali >/dev/null 2>&1; then
+  runuser -l kali -c 'printf "armory install all\nexit\n" > ~/.armory.rc && timeout 1800 /opt/sliver/sliver-server --rc ~/.armory.rc; rm -f ~/.armory.rc' </dev/null >/dev/null 2>&1 \
+    && echo "armory staged" || echo "WARN: sliver armory install failed (run 'armory install all' in sliver-server on the box)"
+fi
 echo "== PayloadsAllTheThings =="; [ -d /opt/PayloadsAllTheThings ] || git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt/PayloadsAllTheThings
 echo "== nuclei templates =="; nuclei -update-templates 2>&1 | tail -2
 # PATH for the extra bin dir
