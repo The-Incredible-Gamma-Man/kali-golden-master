@@ -82,7 +82,8 @@ to load your own scripts and wordlists into the VM.
 - **AD / lateral:** the full Impacket suite (psexec/smbexec/wmiexec/atexec/dcomexec, secretsdump,
   ntlmrelayx…), netexec, evil-winrm, kerbrute, certipy, coercer, mitm6, responder, bloodhound.
 - **Creds:** hashcat, john, pypykatz, samdump2, mimikatz + PsTools staged for drop.
-- **Post-ex / pivot:** chisel, ligolo-ng, sshuttle, proxychains, linpeas/winpeas/pspy.
+- **Post-ex / pivot:** chisel, ligolo-ng, sshuttle, proxychains, linpeas/winpeas/pspy; Metasploit and
+  Sliver (Bishop Fox C2 — server + client staged, started per engagement).
 - **Wordlists & exploits:** SecLists, rockyou, searchsploit/Exploit-DB, PayloadsAllTheThings.
 - **Workflow:** AutoRecon, a hardened Firefox profile (Wappalyzer + FoxyProxy, curated bookmarks),
   CherryTree, Flameshot, OpenVPN, and a self-contained offline HTML cheatsheet.

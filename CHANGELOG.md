@@ -4,6 +4,21 @@ All notable changes to this project are documented here. Version tags follow the
 `kali-baseline-vMAJOR.MINOR-YYYY-MM` scheme so a tag answers "what tools were present
 during testing" at a glance.
 
+## [v1.4-2026-09] — Sliver C2 integrated
+
+### Added
+- **Sliver (Bishop Fox) C2** — the `sliver-server` and `sliver-client` linux-amd64 binaries are staged
+  under `/opt/sliver` and symlinked onto `PATH` via `/opt/tools/bin`, alongside the existing
+  post-exploitation kit (Metasploit, nishang, webshells).
+  - **`provision-golden.sh`** pins **v1.7.7** with SHA-256 verification through the existing
+    `fetch_pinned` path (server `10c78c3b…2b55`, client `4289cd1d…052b`), so a moved or tampered
+    upstream binary fails the build loudly instead of baking an unverified C2 into the image.
+    Upstream also minisign-signs every asset (Bishop Fox key noted in the script).
+  - **`opt-tools.sh`** / **`update-golden.sh`** fetch the latest release on the non-pinned/refresh
+    paths, and `update-golden.sh` records the installed Sliver version in the CHANGELOG manifest.
+  - Like the pre-staged Nessus, the server is **staged but not started or activated** — an operator
+    runs `sliver-server` per engagement, which then generates its own certs and config on first run.
+
 ## [v1.3-2026-09] — hardening baked into the build + fixes
 
 ### Added

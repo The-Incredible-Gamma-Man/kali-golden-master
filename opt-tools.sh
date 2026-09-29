@@ -20,9 +20,12 @@ curl -fsSL -o /opt/peass/winPEASx64.exe https://github.com/peass-ng/PEASS-ng/rel
 curl -fsSL -o /opt/peass/winPEASany.exe https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASany.exe || echo "WARN: winPEASany fetch failed"
 chmod +x /opt/peass/linpeas.sh 2>/dev/null || true
 echo "== pspy =="; curl -fsSL -o /opt/pspy/pspy64 https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64 && chmod +x /opt/pspy/pspy64 || echo "WARN: pspy fetch failed"
+echo "== sliver (C2) =="; mkdir -p /opt/sliver
+curl -fsSL -o /opt/sliver/sliver-server https://github.com/BishopFox/sliver/releases/latest/download/sliver-server_linux-amd64 && chmod +x /opt/sliver/sliver-server && ln -sf /opt/sliver/sliver-server /opt/tools/bin/sliver-server || echo "WARN: sliver-server fetch failed"
+curl -fsSL -o /opt/sliver/sliver-client https://github.com/BishopFox/sliver/releases/latest/download/sliver-client_linux-amd64 && chmod +x /opt/sliver/sliver-client && ln -sf /opt/sliver/sliver-client /opt/tools/bin/sliver-client || echo "WARN: sliver-client fetch failed"
 echo "== PayloadsAllTheThings =="; [ -d /opt/PayloadsAllTheThings ] || git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt/PayloadsAllTheThings
 echo "== nuclei templates =="; nuclei -update-templates 2>&1 | tail -2
 # PATH for the extra bin dir
 echo 'export PATH=$PATH:/opt/tools/bin' > /etc/profile.d/golden-tools.sh
-echo "== sizes =="; du -sh /opt/tools /opt/peass /opt/pspy /opt/PayloadsAllTheThings 2>/dev/null
+echo "== sizes =="; du -sh /opt/tools /opt/peass /opt/pspy /opt/sliver /opt/PayloadsAllTheThings 2>/dev/null
 echo "OPTTOOLS_DONE"

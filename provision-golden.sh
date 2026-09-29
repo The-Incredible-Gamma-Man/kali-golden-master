@@ -33,6 +33,14 @@ P_SHA[pspy64]="c93f29a5cc1347bdb90e14a12424e6469c8cfea9a20b800bc249755f0043a3bb"
 # dalfox ships a tarball; the single binary is extracted after verification.
 P_URL[dalfox.tgz]="https://github.com/hahwul/dalfox/releases/download/v3.2.2/dalfox-v3.2.2-linux-x86_64.tar.gz"
 P_SHA[dalfox.tgz]="7f9621090ab2c5ef48dbab3e2d7a9de81a54390efee2aaa0b431130df629715e"
+# Sliver (Bishop Fox) adversary-emulation C2 - server + standalone client, single
+# static binaries. Upstream also minisign-signs every asset (Bishop Fox key
+# RWSBEnafHRAWuqzM60izuxc/Rr3P0S9BSjM19cVOODJlYxCosJ2SRRwr); we pin the SHA-256 of
+# the exact release so a moved/updated/tampered binary fails the build LOUDLY.
+P_URL[sliver-server]="https://github.com/BishopFox/sliver/releases/download/v1.7.7/sliver-server_linux-amd64"
+P_SHA[sliver-server]="10c78c3b6e9398797d3c1546c95c2db507f64d4bbd9932068a89ee4a8889e0c5"
+P_URL[sliver-client]="https://github.com/BishopFox/sliver/releases/download/v1.7.7/sliver-client_linux-amd64"
+P_SHA[sliver-client]="4289cd1ddae5ef20e71c9eca914d853fde4b55fac20735cdfb87b240f8052b55"
 
 # fetch_pinned <name> <dest> [x] : download to temp, verify SHA-256, then install.
 fetch_pinned(){
@@ -105,6 +113,14 @@ if [ -s "$dtmp/dalfox.tgz" ] && tar -xzf "$dtmp/dalfox.tgz" -C "$dtmp" 2>/dev/nu
   { [ -n "$df" ] && cp "$df" /opt/tools/bin/dalfox && chmod +x /opt/tools/bin/dalfox; } || echo "DL_FAIL dalfox (extract)">>"$FAILED"
 fi
 rm -rf "$dtmp"
+# Sliver C2: stage server + client under /opt/sliver, expose both on PATH.
+# Like Nessus, the server is staged but NOT started/activated here - an operator
+# runs `sliver-server` per engagement, which then generates its own certs/config.
+mkdir -p /opt/sliver
+fetch_pinned sliver-server /opt/sliver/sliver-server x
+fetch_pinned sliver-client /opt/sliver/sliver-client x
+[ -x /opt/sliver/sliver-server ] && ln -sf /opt/sliver/sliver-server /opt/tools/bin/sliver-server
+[ -x /opt/sliver/sliver-client ] && ln -sf /opt/sliver/sliver-client /opt/tools/bin/sliver-client
 pin_git https://github.com/swisskyrepo/PayloadsAllTheThings 3ac27901c711bdf3f5b65a7b1d1820a1f65bd09a /opt/PayloadsAllTheThings
 echo 'export PATH=$PATH:/opt/tools/bin' > /etc/profile.d/golden-tools.sh
 runuser -l kali -c 'nuclei -update-templates' || echo "nuclei templates(kali) failed">>"$FAILED"
@@ -129,6 +145,6 @@ systemctl disable neo4j 2>/dev/null || true
 
 sec "MANIFEST"
 { echo "# golden-master manifest $(date -u +%FT%TZ)"; grep VERSION /etc/os-release;
-  echo "## key tools"; for t in nmap nuclei netexec bloodhound-python impacket-getST sqlmap ffuf feroxbuster gowitness subfinder katana amass evil-winrm mitm6 kerbrute dalfox flameshot cherrytree openvpn msfconsole; do printf "%-18s %s\n" "$t" "$(command -v $t 2>/dev/null||echo MISSING)"; done
+  echo "## key tools"; for t in nmap nuclei netexec bloodhound-python impacket-getST sqlmap ffuf feroxbuster gowitness subfinder katana amass evil-winrm mitm6 kerbrute dalfox sliver-server sliver-client flameshot cherrytree openvpn msfconsole; do printf "%-18s %s\n" "$t" "$(command -v $t 2>/dev/null||echo MISSING)"; done
   echo "## pipx"; PIPX_HOME=/opt/pipx pipx list --short 2>/dev/null; } > /opt/golden-manifest.txt
 echo "===== PROVISION v2 COMPLETE $(date -u +%FT%TZ) ====="; echo "FAILURES:"; cat "$FAILED" || echo none

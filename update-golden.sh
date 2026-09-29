@@ -11,7 +11,7 @@
 set -uo pipefail
 
 CHANGELOG="/opt/golden-build/CHANGELOG.md"
-BIN="/opt/tools/bin"; PEASS="/opt/peass"; DEPLOY="/opt/deploy"
+BIN="/opt/tools/bin"; PEASS="/opt/peass"; DEPLOY="/opt/deploy"; SLIVER="/opt/sliver"
 ASSUME_YES=0; [ "${1:-}" = "--yes" ] && ASSUME_YES=1
 
 c(){    printf '\033[1;36m%s\033[0m\n' "$*"; }
@@ -36,8 +36,9 @@ write_changelog(){
       '^(nmap|masscan|gobuster|ffuf|feroxbuster|nikto|whatweb|wpscan|sqlmap|hydra|john|hashcat|netexec|impacket-scripts|bloodhound|neo4j|responder|enum4linux-ng|smbclient|ldap-utils|chisel|proxychains4|radare2|binwalk|exploitdb|seclists|nuclei|httpx-toolkit|subfinder|naabu|dnsx|katana|gowitness|eyewitness|amass|evil-winrm|mitm6|dirsearch|ligolo-ng|cherrytree|flameshot|ksnip|openvpn|metasploit-framework|ufw)='
     echo "-- pipx --"; PIPX_HOME=/opt/pipx pipx list --short 2>/dev/null
     echo "-- standalone binaries --"
-    for b in "$BIN/kerbrute" "$BIN/dalfox" "$DEPLOY/pspy64"; do
+    for b in "$BIN/kerbrute" "$BIN/dalfox" "$DEPLOY/pspy64" "$SLIVER/sliver-server" "$SLIVER/sliver-client"; do
       [ -e "$b" ] && echo "$(basename "$b") ($(stat -c %y "$b" | cut -d. -f1))"; done
+    echo "sliver: $("$SLIVER/sliver-server" version 2>/dev/null | grep -m1 -iE 'v?[0-9]+\.[0-9]+' | head -1 || echo present)"
     grep -m1 -oE 'LinPEAS version [0-9.]+' "$PEASS/linpeas.sh" 2>/dev/null || echo "linpeas: present"
     echo "PayloadsAllTheThings: $(git -C /opt/PayloadsAllTheThings rev-parse --short HEAD 2>/dev/null || echo n/a)"
     echo "nuclei-templates: $(find "$HOME/.local/nuclei-templates" -name '*.yaml' 2>/dev/null | wc -l) templates"
@@ -83,6 +84,10 @@ dl "$PEASS/linpeas.sh"    https://github.com/peass-ng/PEASS-ng/releases/latest/d
 dl "$PEASS/winPEASx64.exe" https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASx64.exe
 dl "$PEASS/winPEASany.exe" https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASany.exe
 dl "$DEPLOY/pspy64"       https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64
+sudo mkdir -p "$SLIVER"
+dl "$SLIVER/sliver-server" https://github.com/BishopFox/sliver/releases/latest/download/sliver-server_linux-amd64
+dl "$SLIVER/sliver-client" https://github.com/BishopFox/sliver/releases/latest/download/sliver-client_linux-amd64
+sudo ln -sf "$SLIVER/sliver-server" "$BIN/sliver-server"; sudo ln -sf "$SLIVER/sliver-client" "$BIN/sliver-client"
 # match the real asset name (dalfox_Linux_x86_64.tar.gz) and extract in a private
 # mktemp dir so a predictable /tmp path / stray 'dalfox' can't be picked up
 DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest 2>/dev/null | grep -oE 'https://[^"]*-linux-x86_64\.tar\.gz' | head -1 || true)
@@ -94,7 +99,7 @@ if [ -n "$DURL" ]; then
   else warn "bin FAILED: dalfox"; fi
   rm -rf "$dtmp"
 else warn "bin FAILED: dalfox (no asset URL)"; fi
-sudo chmod +x "$BIN"/* "$PEASS/linpeas.sh" "$DEPLOY/pspy64" 2>/dev/null
+sudo chmod +x "$BIN"/* "$PEASS/linpeas.sh" "$DEPLOY/pspy64" "$SLIVER"/sliver-* 2>/dev/null
 # keep the deploy folder in sync
 sudo cp -f "$PEASS/linpeas.sh" "$PEASS/winPEASx64.exe" "$PEASS/winPEASany.exe" "$DEPLOY/" 2>/dev/null
 
