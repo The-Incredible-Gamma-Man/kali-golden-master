@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Spin up an isolated engagement clone from the golden master.
 # Contamination controls: fresh machine-id, fresh SSH host keys, wiped logs/
-# history, fresh Metasploit DB, wiped BloodHound/neo4j graph, empty workspace.
+# history, fresh Metasploit DB, wiped BloodHound/neo4j graph, reset Sliver C2
+# state (server CA/loot/DB + operator configs), empty workspace.
 # Inherits from master: UFW (deny-in/allow-out/SSH/no-ping), key-only SSH,
 # root locked, gateway-only DNS, slimmed services, full toolset.
 set -euo pipefail
@@ -31,6 +32,7 @@ sudo virt-sysprep -d "$NAME" --hostname "$NAME" --operations defaults,-ssh-userd
   --firstboot-command "printf 'nameserver ${GWDNS}\noptions edns0\n' > /etc/resolv.conf" \
   --firstboot-command 'msfdb reinit || true' \
   --firstboot-command 'systemctl stop neo4j 2>/dev/null; rm -rf /var/lib/neo4j/data/databases/* /var/lib/neo4j/data/transactions/* 2>/dev/null; true' \
+  --firstboot-command 'rm -rf /home/kali/.sliver /root/.sliver /home/kali/.sliver-client/configs /root/.sliver-client/configs 2>/dev/null; true' \
   --firstboot-command "runuser -l kali -c 'mkdir -p ~/engagements/${ID}/{recon,loot,creds,screenshots,report}'" \
   --firstboot-command 'nmap --script-updatedb || true'
 

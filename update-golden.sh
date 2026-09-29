@@ -88,6 +88,11 @@ sudo mkdir -p "$SLIVER"
 dl "$SLIVER/sliver-server" https://github.com/BishopFox/sliver/releases/latest/download/sliver-server_linux-amd64
 dl "$SLIVER/sliver-client" https://github.com/BishopFox/sliver/releases/latest/download/sliver-client_linux-amd64
 sudo ln -sf "$SLIVER/sliver-server" "$BIN/sliver-server"; sudo ln -sf "$SLIVER/sliver-client" "$BIN/sliver-client"
+# refresh the offline Sliver armory cache (best-effort; keeps kali's extensions/aliases current)
+if command -v sliver-client >/dev/null && id kali >/dev/null 2>&1; then
+  sudo runuser -l kali -c 'timeout 900 sliver-client armory install all' </dev/null >/dev/null 2>&1 \
+    && ok "sliver armory" || warn "sliver armory refresh (best-effort) failed"
+fi
 # match the real asset name (dalfox_Linux_x86_64.tar.gz) and extract in a private
 # mktemp dir so a predictable /tmp path / stray 'dalfox' can't be picked up
 DURL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest 2>/dev/null | grep -oE 'https://[^"]*-linux-x86_64\.tar\.gz' | head -1 || true)

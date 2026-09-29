@@ -18,6 +18,22 @@ during testing" at a glance.
     paths, and `update-golden.sh` records the installed Sliver version in the CHANGELOG manifest.
   - Like the pre-staged Nessus, the server is **staged but not started or activated** — an operator
     runs `sliver-server` per engagement, which then generates its own certs and config on first run.
+- **Offline Sliver armory** — `provision-golden.sh` (and `update-golden.sh` on refresh) best-effort
+  caches the armory **extensions/aliases** (BOFs, .NET post-ex, situational-awareness) into
+  `/home/kali/.sliver-client`, so a locked-down engagement box needs no internet — same rationale as
+  the offline nuclei-templates / PayloadsAllTheThings staging. Failures are logged, never fatal.
+- **Sliver loot in evidence exports** — `export-engagement.sh` now also captures the Sliver server
+  state (`~/.sliver`: loot store, creds/host DB, session + audit logs, certs; the unpacked Go
+  toolchain is excluded) on both the SSH and offline (`virt-copy-out`) paths, folded into the same
+  hashed/signed archive and recorded as `sliver_state:` in the `.meta.txt`. Sliver is optional, so
+  its absence never marks an archive incomplete.
+
+### Changed / OPSEC
+- **Clone generalize + master seal reset Sliver state.** `new-engagement.sh` (per clone) and
+  `clean-master.sh` (master) now wipe `~/.sliver` (server CA/loot/DB) and the per-operator
+  `~/.sliver-client/configs`, alongside the existing Metasploit-DB reinit and neo4j wipe. This closes
+  a cross-contamination hazard: baking one Sliver **CA** into the template would give every clone a
+  shared implant trust root. The generic armory extensions/aliases are deliberately preserved.
 
 ## [v1.3-2026-09] — hardening baked into the build + fixes
 

@@ -33,7 +33,7 @@ cloned. Everything client-specific lives in a clone and is destroyed at close.
 virsh shutdown kali-golden          # master must be off to clone
 ./new-engagement.sh acme-corp
 # -> clones, generalizes (fresh machine-id / SSH host keys / Metasploit DB,
-#    wiped neo4j, empty workspace), boots, prints the clone's address.
+#    wiped neo4j, reset Sliver C2 state, empty workspace), boots, prints the address.
 ```
 
 Connect to the clone with the build key over the host's NAT network. Work only inside
@@ -50,6 +50,13 @@ Connect to the clone with the build key over the host's NAT network. Work only i
 (CherryTree notes, loot, report) is gone with the disk. Always `export-engagement.sh` first; the
 close guard enforces it. Archives land in `~/engagements-archive/` (override with `GOLDEN_ARCHIVE`).
 On an encrypted host, deletion of the clone leaves nothing recoverable at rest.
+
+**Sliver loot:** `export-engagement.sh` also captures the Sliver server state (`~/.sliver`: loot
+store, creds/host DB, session + audit logs, certs — minus the bundled Go toolchain), recorded as
+`sliver_state: captured` in the archive's `.meta.txt`. So findings are retained, run the Sliver
+server as the `kali` user and keep looted files in Sliver's store (`loot add …` / `download`
+follow-ups) or under `~/engagements/<id>/loot`. Sliver state is reset on the next clone, so nothing
+carries between engagements.
 
 ## Update the master
 

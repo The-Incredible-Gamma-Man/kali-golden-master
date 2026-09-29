@@ -52,6 +52,27 @@ if [ -n "$ip" ]; then
       echo "  [!] failed to pull note: $f"; COLLECT_OK=0
     fi
   done <<< "$notes_list"
+  # Sliver C2 server state: loot store, creds/host DB, session + audit logs, certs.
+  # Optional - not every engagement uses Sliver, so its ABSENCE is fine and must not
+  # flip COLLECT_OK. Exclude the bundled Go toolchain / traffic-encoders that
+  # sliver-server unpacks on first run (hundreds of MB, not evidence). Build the
+  # filtered tar on the clone, pull it, and unpack so each file lands in the manifest.
+  set +e
+  sliver_have=$(ssh "${SSHOPTS[@]}" "kali@$ip" '[ -d "$HOME/.sliver" ] && echo yes || echo no')
+  set -e
+  if [ "$sliver_have" = yes ]; then
+    mkdir -p "$STAGE/sliver-server-state"
+    if ssh "${SSHOPTS[@]}" "kali@$ip" 'tar -C "$HOME" --exclude=.sliver/go --exclude=.sliver/traffic-encoders -czf /tmp/.sliver-evidence.tgz .sliver 2>/dev/null' \
+       && scp "${SSHOPTS[@]}" "kali@$ip:/tmp/.sliver-evidence.tgz" "$STAGE/.sv.tgz"; then
+      tar -C "$STAGE/sliver-server-state" -xzf "$STAGE/.sv.tgz" && rm -f "$STAGE/.sv.tgz"
+      ssh "${SSHOPTS[@]}" "kali@$ip" 'rm -f /tmp/.sliver-evidence.tgz' 2>/dev/null || true
+      echo "  [*] captured Sliver server state (loot/creds/logs/certs)"
+    else
+      echo "  [!] Sliver state present but its capture FAILED"; COLLECT_OK=0
+    fi
+  else
+    echo "  [i] no Sliver server state on clone (~/.sliver absent) - skipping"
+  fi
 else
   echo "[*] clone not running - extracting from disk offline (virt-copy-out)"
   disk="/var/lib/libvirt/images/engagements/${NAME}.qcow2"
@@ -59,6 +80,17 @@ else
   if ! sudo virt-copy-out -a "$disk" "/home/kali/engagements/$ID" "$STAGE/"; then
     echo "  [!] virt-copy-out of the workspace failed - archive may be INCOMPLETE"
     COLLECT_OK=0
+  fi
+  # Sliver C2 server state (optional, see SSH branch). Copy it out, then prune the
+  # unpacked Go toolchain / traffic-encoders. Absence is fine - do not flip COLLECT_OK.
+  mkdir -p "$STAGE/sliver-server-state"
+  if sudo virt-copy-out -a "$disk" "/home/kali/.sliver" "$STAGE/sliver-server-state/" 2>/dev/null; then
+    sudo rm -rf "$STAGE/sliver-server-state/.sliver/go" "$STAGE/sliver-server-state/.sliver/traffic-encoders" 2>/dev/null || true
+    sudo chown -R "$(id -u):$(id -g)" "$STAGE/sliver-server-state" 2>/dev/null || true
+    echo "  [*] captured Sliver server state (offline: loot/creds/logs/certs)"
+  else
+    rmdir "$STAGE/sliver-server-state" 2>/dev/null || true
+    echo "  [i] no Sliver server state in image (/home/kali/.sliver absent) - skipping"
   fi
 fi
 
@@ -111,6 +143,7 @@ plaintext_sha256: $(cat "$OUT.tar.gz.sha256")   # over the pre-encryption .tar.g
 signature       : $( [ -n "$SIG" ] && basename "$SIG" || echo "(none - UNSIGNED)" )
 encrypted       : $( [ "$ARCHIVE" != "$OUT.tar.gz" ] && echo yes || echo "no (PLAINTEXT)" )
 complete        : $( [ "$COLLECT_OK" = 1 ] && echo yes || echo "NO - some transfers failed" )
+sliver_state    : $( [ -n "$(ls -A "$STAGE/sliver-server-state" 2>/dev/null)" ] && echo "captured" || echo "none" )
 files           : $(wc -l < "$OUT.manifest.sha256")
 META
 
