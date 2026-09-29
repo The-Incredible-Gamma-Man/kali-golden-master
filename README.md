@@ -108,6 +108,13 @@ Because close is irreversible, **run `goldenctl export <id>` first** — it pull
 CherryTree notes off the clone into a timestamped, SHA-256-hashed archive for evidence retention, and
 `close` refuses to destroy an engagement that has no export (unless you explicitly override).
 
+**Sliver C2** follows the same model. The `sliver-server`/`sliver-client` binaries are staged and
+SHA-256-verified into the image (with the armory extensions/aliases cached offline), but no server
+CA, config or loot is baked in — each clone resets Sliver state so no implant trust root is ever
+shared between engagements. The export captures the clone's Sliver server state (loot store,
+creds/host DB, session + audit logs, certs) into the same hashed archive; `close` then destroys it
+with the disk.
+
 ## Repository layout
 
 | Path | Purpose |
